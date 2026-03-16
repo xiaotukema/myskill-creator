@@ -1,0 +1,1558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenClaw Skill Creator - 轻松创建你的第一个 Skill</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .card-shadow { box-shadow: 0 10px 40px rgba(102, 126, 234, 0.15); }
+    .input-focus:focus { box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3); }
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      transition: all 0.3s ease;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4); }
+    .btn-secondary { background: white; border: 2px solid #e5e7eb; transition: all 0.2s ease; }
+    .btn-secondary:hover { border-color: #667eea; color: #667eea; }
+    .btn-add { background: #f0f9ff; border: 2px dashed #667eea; color: #667eea; transition: all 0.2s ease; }
+    .btn-add:hover { background: #e0f2fe; }
+    .btn-remove { background: #fef2f2; border: 2px solid #fca5a5; color: #ef4444; transition: all 0.2s ease; }
+    .btn-remove:hover { background: #fee2e2; }
+    .code-preview { background: #1e293b; color: #e2e8f0; font-family: 'Monaco', 'Menlo', monospace; font-size: 14px; line-height: 1.6; }
+    .step-active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    .step-inactive { background: #f3f4f6; color: #9ca3af; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .animate-pulse-slow { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .skill-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px; background: #f3f4f6; border-radius: 9999px;
+      font-size: 12px; color: #374151; cursor: pointer; transition: all 0.2s;
+    }
+    .skill-tag:hover { background: #e5e7eb; }
+    .skill-tag.selected { background: #667eea; color: white; }
+    .tab-active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    .tab-inactive { background: #f3f4f6; color: #6b7280; }
+    /* Guided animation for sample button */
+    @keyframes guided-pulse {
+      0% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7); }
+      70% { box-shadow: 0 0 0 15px rgba(102, 126, 234, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0); }
+    }
+    .btn-guided {
+      animation: guided-pulse 2s infinite;
+    }
+    .btn-guided:hover {
+      animation: none;
+      transform: scale(1.05);
+    }
+    /* Modal styles */
+    .modal-overlay {
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+    }
+    .modal-content {
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <header class="gradient-bg text-white py-6 px-4">
+    <div class="max-w-5xl mx-auto flex items-center justify-between">
+      <div class="flex flex-col">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <h1 class="text-xl font-bold">OpenClaw Skill Creator</h1>
+        </div>
+        <p class="text-sm opacity-70 mt-1 ml-13">让每个人都能创建 AI Skill</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <!-- User Auth Section -->
+        <div id="userAuthSection">
+          <button onclick="openAuthModal('login')" class="border border-white/30 hover:border-white/60 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            登录
+          </button>
+          <button onclick="openAuthModal('register')" class="border border-white/30 hover:border-white/60 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            注册
+          </button>
+        </div>
+        <div id="userInfoSection" class="hidden flex items-center gap-3">
+          <span id="userNameDisplay" class="text-sm font-medium"></span>
+          <button onclick="logout()" class="border border-white/30 hover:border-white/60 bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+            退出
+          </button>
+        </div>
+        <a href="/my-skills.html" class="border border-white/30 hover:border-white/60 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+          📁 我的 Skill
+        </a>
+        <a href="/skill-center.html" class="border border-white/30 hover:border-white/60 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+          🎯 Skill 中心
+        </a>
+        <a href="/skill-guide.html" class="border border-white/30 hover:border-white/60 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+          📖 设计指南
+        </a>
+        <a href="/skill-test.html" class="border border-white/30 hover:border-white/60 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+          🧪 测试中心
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-8">
+    <div class="flex items-center justify-center mb-8 gap-2">
+      <div id="step1" class="step-active px-4 py-2 rounded-full text-sm font-medium">1. 填写信息</div>
+      <div class="w-8 h-0.5 bg-gray-300"></div>
+      <div id="step2" class="step-inactive px-4 py-2 rounded-full text-sm font-medium">2. 生成 & 预览</div>
+      <div class="w-8 h-0.5 bg-gray-300"></div>
+      <div id="step3" class="step-inactive px-4 py-2 rounded-full text-sm font-medium">3. 下载 & 安装</div>
+    </div>
+
+    <div id="step1-panel" class="fade-in">
+      <div class="bg-white rounded-2xl card-shadow p-8">
+        <h2 class="text-2xl font-bold text-gray-800 mb-2">创建你的专属 Skill</h2>
+        <div class="flex items-center justify-between mb-6">
+          <p class="text-gray-500">填写以下信息，AI 会帮你生成完整的 SKILL.md 文件</p>
+          <button type="button" onclick="openSampleModal()" id="sampleBtn" class="btn-guided px-4 py-2 rounded-xl text-sm font-medium inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            查看示例
+          </button>
+        </div>
+
+        <!-- Import from URL -->
+        <div class="mb-8 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-200">
+          <div class="flex items-center gap-3 mb-3">
+            <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+            <span class="font-medium text-gray-800">从链接导入</span>
+          </div>
+          <div class="flex gap-2">
+            <input type="url" id="importUrl" 
+              class="flex-1 px-4 py-2 border border-gray-200 rounded-lg input-focus outline-none transition-all"
+              placeholder="粘贴链接，AI 会自动分析内容生成 Skill">
+            <button type="button" onclick="importFromUrl()" id="importBtn"
+              class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors">
+              导入
+            </button>
+          </div>
+          <p class="text-xs text-gray-500 mt-2">支持文档、Wiki、网页等链接</p>
+          <div id="importStatus" class="mt-2 text-sm hidden"></div>
+        </div>
+        
+        <form id="skillForm" class="space-y-8">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Skill 名称 <span class="text-red-500">*</span></label>
+            <input type="text" id="skillName" required class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus outline-none transition-all" placeholder="例如: weather-inquiry, pdf-helper, code-review">
+            <p class="text-xs text-gray-400 mt-1">使用小写字母、数字和连字符</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">简要描述该技能的功能 <span class="text-red-500">*</span></label>
+              <textarea id="skillFunctionDesc" required rows="3" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus outline-none transition-all resize-none" placeholder="例如：查询指定城市的天气信息和未来几天的天气预报"></textarea>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">何时使用该技能 (When to Use) <span class="text-red-500">*</span></label>
+              <textarea id="skillWhenToUse" required rows="3" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus outline-none transition-all resize-none" placeholder="例如：当用户询问天气、查询温度、问某地会不会下雨时使用"></textarea>
+              <p class="text-xs text-gray-400 mt-1">这是触发 Skill 的关键条件</p>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="block text-sm font-medium text-gray-700">定义工作流 (Workflow) <span class="text-red-500">*</span></label>
+              <button type="button" onclick="addInstructionStep()" class="btn-add px-3 py-1.5 rounded-lg text-sm font-medium inline-flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                增加步骤
+              </button>
+            </div>
+            <div id="instructionsContainer" class="space-y-3">
+              <div class="instruction-step flex gap-3 items-start">
+                <div class="step-number w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 text-white flex items-center justify-center text-sm font-medium flex-shrink-0">1</div>
+                <textarea rows="3" class="instruction-text flex-1 px-4 py-3 border border-gray-200 rounded-xl input-focus outline-none transition-all resize-none" placeholder="例如：调用天气 API 获取实时天气数据"></textarea>
+                <button type="button" onclick="removeInstructionStep(this)" class="btn-remove w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 hidden"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+              </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">添加该技能需要执行的具体步骤</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+              需要用到的工具（可选）
+              <a href="/skill-center.html" target="_blank" class="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-1 rounded-full hover:from-purple-600 hover:to-pink-600 transition-colors inline-flex items-center gap-1">
+                🎯 Skill 中心
+              </a>
+            </label>
+            <div class="flex gap-2 mb-4">
+              <button type="button" id="tabDropdown" onclick="switchToolTab('dropdown')" class="tab-active px-4 py-2 rounded-lg text-sm font-medium">🔍 从 ClawHub 选择</button>
+              <button type="button" id="tabManual" onclick="switchToolTab('manual')" class="tab-inactive px-4 py-2 rounded-lg text-sm font-medium">✏️ 自主输入</button>
+            </div>
+
+            <div id="dropdownPanel" class="space-y-4">
+              <div class="flex gap-3 items-start">
+                <div class="flex-1">
+                  <select id="toolCategory" onchange="loadCategorySkills()" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus outline-none transition-all bg-white">
+                    <option value="">选择工具类型...</option>
+                    <option value="infrastructure">🏗️ Infrastructure（基础设施）</option>
+                    <option value="creativity">🎨 Creativity（创意）</option>
+                    <option value="search">🔎 Search（搜索）</option>
+                    <option value="writing">✍️ Writing（写作）</option>
+                    <option value="video/image">🎬 Video/Image Generate（视频/图片生成）</option>
+                    <option value="work">💼 Work（工作）</option>
+                    <option value="coding">💻 Coding（编程）</option>
+                    <option value="design">🎯 Design（设计）</option>
+                    <option value="audio">🔊 Audio（音频）</option>
+                  </select>
+                </div>
+                <button type="button" onclick="addToolDropdown()" class="btn-add px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-1 flex-shrink-0">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                  增加
+                </button>
+              </div>
+              <div id="toolDropdownsContainer" class="space-y-3"></div>
+              <div id="skillsDisplay" class="mt-4 p-4 bg-gray-50 rounded-xl min-h-[100px]">
+                <p class="text-sm text-gray-400 text-center">选择工具类型后，这里会显示相关的高热 Skill</p>
+              </div>
+              <div id="selectedTools" class="flex flex-wrap gap-2 mt-3"></div>
+            </div>
+
+            <div id="manualPanel" class="hidden">
+              <textarea id="skillTools" rows="3" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus outline-none transition-all resize-none" placeholder="例如: weather-api, feishu_calendar_event, web_search（多个工具用逗号分隔）"></textarea>
+              <p class="text-xs text-gray-400 mt-1">如果有特定工具需要使用，在此列出</p>
+            </div>
+          </div>
+
+          <!-- Bundled Resources Section (Collapsible) -->
+          <div class="border-t border-gray-200 pt-6">
+            <button type="button" onclick="toggleBundledResources()" id="bundledResourcesToggle" class="flex items-center gap-2 text-lg font-semibold text-gray-800 hover:text-purple-600 transition-colors">
+              <svg id="bundledResourcesArrow" class="w-5 h-5 transform rotate-0 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+              📦 附加资源（可选）
+            </button>
+            <p class="text-sm text-gray-500 mt-1 mb-4">添加可执行的脚本、参考文档和资源文件</p>
+            
+            <div id="bundledResourcesContent" class="hidden space-y-6">
+              <!-- References Section -->
+              <div class="bg-gray-50 rounded-xl p-4">
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="text-lg">📚</span>
+                  <h4 class="font-medium text-gray-700">references/（可选）</h4>
+                  <span class="text-xs text-gray-400">按需加载的参考文档</span>
+                </div>
+                <div id="referencesContainer" class="space-y-2">
+                  <div class="reference-item flex gap-2 items-center">
+                    <input type="text" class="reference-name flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="文件名（如 api-docs.md）">
+                    <button type="button" onclick="removeReference(this)" class="btn-remove px-2 py-1 rounded-lg text-xs hidden">删除</button>
+                  </div>
+                </div>
+                <button type="button" onclick="addReference()" class="mt-2 text-sm text-purple-600 hover:text-purple-700">+ 添加参考文档</button>
+              </div>
+
+              <!-- Scripts Section with File Upload -->
+              <div class="bg-gray-50 rounded-xl p-4">
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="text-lg">⚡</span>
+                  <h4 class="font-medium text-gray-700">scripts/（可选）</h4>
+                  <span class="text-xs text-gray-400">可执行代码（Python、Bash 等），支持上传</span>
+                </div>
+                <div id="scriptsContainer" class="space-y-2">
+                  <div class="script-item flex gap-2 items-center">
+                    <input type="text" class="script-name flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="文件名（如 process_data.py）">
+                    <label class="btn-add px-3 py-2 rounded-lg text-xs cursor-pointer inline-flex items-center gap-1">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                      上传
+                      <input type="file" class="script-file hidden" onchange="handleScriptUpload(this)">
+                    </label>
+                    <button type="button" onclick="removeScript(this)" class="btn-remove px-2 py-1 rounded-lg text-xs hidden">删除</button>
+                  </div>
+                </div>
+                <button type="button" onclick="addScript()" class="mt-2 text-sm text-purple-600 hover:text-purple-700">+ 添加脚本文件</button>
+              </div>
+
+              <!-- Assets Section with File Upload -->
+              <div class="bg-gray-50 rounded-xl p-4">
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="text-lg">🎨</span>
+                  <h4 class="font-medium text-gray-700">assets/（可选）</h4>
+                  <span class="text-xs text-gray-400">模板、图标、字体等资源文件，支持上传</span>
+                </div>
+                <div id="assetsContainer" class="space-y-2">
+                  <div class="asset-item flex gap-2 items-center">
+                    <input type="text" class="asset-name flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="文件名（如 template.html）">
+                    <label class="btn-add px-3 py-2 rounded-lg text-xs cursor-pointer inline-flex items-center gap-1">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                      上传
+                      <input type="file" class="asset-file hidden" onchange="handleAssetUpload(this)">
+                    </label>
+                    <button type="button" onclick="removeAsset(this)" class="btn-remove px-2 py-1 rounded-lg text-xs hidden">删除</button>
+                  </div>
+                </div>
+                <button type="button" onclick="addAsset()" class="mt-2 text-sm text-purple-600 hover:text-purple-700">+ 添加资源文件</button>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary w-full py-4 rounded-xl text-white font-semibold text-lg">✨ AI 生成 Skill</button>
+        </form>
+      </div>
+
+      <div class="mt-6 bg-blue-50 rounded-xl p-6">
+        <h3 class="font-semibold text-blue-800 mb-3">💡 创建 Skill 的小贴士</h3>
+        <ul class="text-sm text-blue-700 space-y-2">
+          <li>• <strong>描述要具体</strong>：清楚地说明什么时候应该使用这个 Skill</li>
+          <li>• <strong>运行指令清晰</strong>：列出具体的执行步骤，AI 才能正确执行</li>
+          <li>• <strong>选择合适的工具</strong>：从 ClawHub 选择或手动输入需要的工具</li>
+          <li>• <strong>保持简洁</strong>：SKILL.md 越简洁，AI 使用效果越好</li>
+        </ul>
+      </div>
+    </div>
+
+    <div id="step2-panel" class="hidden fade-in">
+      <div class="bg-white rounded-2xl card-shadow p-8">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-2xl font-bold text-gray-800">生成结果</h2>
+            <p class="text-gray-500">你可以修改以下内容</p>
+          </div>
+          <button onclick="goToStep(1)" class="btn-secondary px-4 py-2 rounded-lg text-gray-600">← 返回修改</button>
+        </div>
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-700 mb-2">SKILL.md 预览</label>
+          <textarea id="previewContent" class="code-preview w-full h-96 p-4 rounded-xl outline-none resize-none" spellcheck="false"></textarea>
+        </div>
+        <div class="flex gap-4">
+          <button onclick="regenerate()" class="btn-secondary flex-1 py-3 rounded-xl font-medium">🔄 重新生成</button>
+          <button onclick="goToStep(3)" class="btn-primary flex-1 py-3 rounded-xl text-white font-medium">下一步：下载 & 安装 →</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="step3-panel" class="hidden fade-in">
+      <div class="bg-white rounded-2xl card-shadow p-8">
+        <h2 class="text-2xl font-bold text-gray-800 mb-2">完成！🎉</h2>
+        <p class="text-gray-500 mb-8">你的 Skill 已经准备好了</p>
+
+        <div class="border-2 border-dashed border-gray-200 rounded-xl p-8 mb-6 text-center">
+          <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          </div>
+          <h3 class="font-semibold text-gray-800 mb-2">下载 SKILL.md</h3>
+          <p class="text-sm text-gray-500 mb-4">保存到本地</p>
+          <button onclick="downloadSkill()" class="btn-primary px-8 py-3 rounded-xl text-white font-medium inline-flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            下载文件
+          </button>
+        </div>
+
+        <!-- Publish to Skill Center -->
+        <div class="border-2 border-dashed border-pink-200 rounded-xl p-8 mb-6 bg-pink-50">
+          <div class="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          </div>
+          <h3 class="font-semibold text-gray-800 mb-2">发布到 Skill 中心</h3>
+          <p class="text-sm text-gray-500 mb-4">将你的 Skill 发布到 ClawHub 与其他用户分享</p>
+          <div id="publishStatus" class="mb-4 hidden"><div id="publishMessage" class="text-sm"></div></div>
+          <button onclick="publishToSkillCenter()" id="publishBtn" class="bg-gradient-to-r from-pink-500 to-rose-500 px-8 py-3 rounded-xl text-white font-medium inline-flex items-center gap-2 hover:from-pink-600 hover:to-rose-600 transition-all">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            发布 Skill
+          </button>
+        </div>
+
+        <div class="border-2 border-dashed border-purple-200 rounded-xl p-8 mb-6 bg-purple-50">
+          <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          </div>
+          <h3 class="font-semibold text-gray-800 mb-2">一键安装到 OpenClaw</h3>
+          <p class="text-sm text-gray-500 mb-2">将 Skill 安装到你的 OpenClaw 实例（当前支持本地部署）</p>
+          <div id="installStatus" class="mb-4 hidden"><div id="installMessage" class="text-sm"></div></div>
+          <button onclick="installSkill()" id="installBtn" class="bg-gradient-to-r from-purple-600 to-indigo-600 px-8 py-3 rounded-xl text-white font-medium inline-flex items-center gap-2 hover:from-purple-700 hover:to-indigo-700 transition-all">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0L8 8m4-4v12"/></svg>
+            一键安装
+          </button>
+        </div>
+
+        <div class="bg-gray-50 rounded-xl p-6">
+          <h4 class="font-medium text-gray-800 mb-3">📋 手动安装说明</h4>
+          <ol class="text-sm text-gray-600 space-y-2">
+            <li>1. 在 OpenClaw 的 <code class="bg-gray-200 px-2 py-0.5 rounded">~/.openclaw/workspace/skills/</code> 目录下创建新文件夹</li>
+            <li>2. 文件夹名称改为你的 Skill 名称（如 <code class="bg-gray-200 px-2 py-0.5 rounded">my-skill/</code>）</li>
+            <li>3. 将下载的 <code class="bg-gray-200 px-2 py-0.5 rounded">SKILL.md</code> 文件放入文件夹</li>
+            <li>4. 重启 OpenClaw 即可使用</li>
+          </ol>
+        </div>
+
+        <button onclick="goToStep(2)" class="mt-6 btn-secondary w-full py-3 rounded-xl font-medium">← 返回预览</button>
+      </div>
+    </div>
+
+    <div id="loading" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-2xl p-8 text-center">
+        <div class="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto mb-4"></div>
+        <p class="text-gray-700 font-medium">AI 正在生成 Skill...</p>
+        <p class="text-sm text-gray-500 mt-1">这可能需要几秒钟</p>
+      </div>
+    </div>
+
+    <!-- Sample Modal -->
+    <div id="sampleModal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
+      <div class="modal-content bg-white rounded-2xl card-shadow max-w-3xl w-full max-h-[80vh] overflow-y-auto">
+        <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+          <div>
+            <h3 class="text-xl font-bold text-gray-800">Skill 示例</h3>
+            <p class="text-sm text-gray-500">查看示例以了解 Skill 的结构</p>
+          </div>
+          <button onclick="closeSampleModal()" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <svg class="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        
+        <!-- Language Tabs -->
+        <div class="flex border-b border-gray-200 px-6">
+          <button onclick="switchSampleTab('en')" id="sampleTabEn" class="tab-active px-4 py-3 text-sm font-medium border-b-2 border-transparent">🇺🇸 English 示例</button>
+          <button onclick="switchSampleTab('zh')" id="sampleTabZh" class="tab-inactive px-4 py-3 text-sm font-medium border-b-2 border-transparent">🇨🇳 中文示例</button>
+        </div>
+        
+        <div class="p-6 max-h-[60vh] overflow-y-auto">
+          <!-- English Sample -->
+          <div id="sampleContentEn">
+            <pre class="code-preview p-4 rounded-xl whitespace-pre-wrap text-sm">## SKILL.md
+
+Generate complete, publish-ready content for Chinese social media platforms.
+
+## When to Activate
+
+Trigger when the user mentions: 写文章, 写笔记, generate content, 写稿, draft post, create article.
+
+## Workflow
+
+- Confirm inputs:
+  - Topic / title
+  - Target platform
+  - Word count
+  - Style (professional / casual / product review / educational)
+  - Whether image suggestions are needed
+
+- Generate platform-native content
+
+## Quality Checklist
+- Is the title compelling?
+- Does it hook the reader?
+- Are there concrete examples?
+- Is there a clear CTA?
+
+## Guidelines
+- All content must be original
+- Avoid absolute claims
+- Data citations must be verifiable</pre>
+          </div>
+          
+          <!-- Chinese Sample -->
+          <div id="sampleContentZh" class="hidden">
+            <pre class="code-preview p-4 rounded-xl whitespace-pre-wrap text-sm">## SKILL.md
+
+生成可用于发布的自媒体平台内容。
+
+## 何时激活
+
+当用户提到以下内容时触发：写文章、写笔记、生成内容、写稿、创建文章。
+
+## 工作流程
+
+- 确认输入：
+  - 主题/标题
+  - 目标平台
+  - 字数要求
+  - 风格（专业/休闲/产品评测/教育）
+  - 是否需要图片建议
+
+- 生成平台原生内容
+
+### 小红书格式
+- 标题带 emoji 和关键词
+- 开头钩子吸引注意
+- 短段落，每段 2-3 句
+- 总结/行动号召
+- 标签 5-10 个
+
+### 知乎格式
+- 直接回答核心问题
+- 逻辑展开论证
+- 引用数据或案例
+- 要点总结
+- 引导关注/点赞
+
+### 公众号格式
+- 标题
+- 开头建立共鸣
+- 多个子标题分段
+- 结尾提升 + CTA
+
+## 质量检查清单
+- 标题是否吸引人？
+- 前 3 行能否抓住读者？
+- 是否有具体例子或数据？
+- 是否有明确的行动号召？
+
+## 指南
+- 所有内容必须原创
+- 避免绝对化表述
+- 数据引用必须可验证</pre>
+          </div>
+        </div>
+        
+        <div class="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end rounded-b-2xl">
+          <button onclick="closeSampleModal()" class="btn-primary px-6 py-2 rounded-xl text-white font-medium">
+            我知道了
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="text-center py-8 text-gray-400 text-sm"><p>Powered by OpenClaw • Skill Creator</p></footer>
+
+  <script>
+    let generatedSkillContent = '';
+    let skillName = '';
+    let selectedTools = [];
+    let instructionStepCount = 1;
+    let sampleModalDismissed = false;
+
+    // Modal functions
+    function openSampleModal() {
+      document.getElementById('sampleModal').classList.remove('hidden');
+    }
+
+    function closeSampleModal() {
+      document.getElementById('sampleModal').classList.add('hidden');
+      sampleModalDismissed = true;
+      document.getElementById('sampleBtn').classList.remove('btn-guided');
+      // Save to localStorage so it only shows once
+      localStorage.setItem('skillCreator_sampleShown', 'true');
+    }
+
+    function switchSampleTab(lang) {
+      const enTab = document.getElementById('sampleTabEn');
+      const zhTab = document.getElementById('sampleTabZh');
+      const enContent = document.getElementById('sampleContentEn');
+      const zhContent = document.getElementById('sampleContentZh');
+      
+      if (lang === 'en') {
+        enTab.className = 'tab-active px-4 py-3 text-sm font-medium border-b-2 border-transparent';
+        zhTab.className = 'tab-inactive px-4 py-3 text-sm font-medium border-b-2 border-transparent';
+        enContent.classList.remove('hidden');
+        zhContent.classList.add('hidden');
+      } else {
+        enTab.className = 'tab-inactive px-4 py-3 text-sm font-medium border-b-2 border-transparent';
+        zhTab.className = 'tab-active px-4 py-3 text-sm font-medium border-b-2 border-transparent';
+        enContent.classList.add('hidden');
+        zhContent.classList.remove('hidden');
+      }
+    }
+
+    // Auto-show modal on first visit (after 1 second) - only once per user
+    setTimeout(() => {
+      const alreadyShown = localStorage.getItem('skillCreator_sampleShown');
+      if (!alreadyShown && !sampleModalDismissed) {
+        openSampleModal();
+      }
+    }, 1000);
+
+    // Comprehensive ClawHub skills data (scraped from clawhub.com)
+    const clawhubSkills = {
+      'infrastructure': [
+        {name: 'healthcheck', desc: 'Host security hardening and risk assessment', installs: 13572},
+        {name: 'github', desc: 'GitHub operations via gh CLI', installs: 113292},
+        {name: 'self-improving', desc: 'Self-reflection and learning agent', installs: 75792}
+      ],
+      'creativity': [
+        {name: 'nano-banana-pro', desc: 'Image generation via Gemini 3 Pro', installs: 52159},
+        {name: 'tts', desc: 'Text to speech conversion'},
+        {name: 'image-generator', desc: 'AI image generation'}
+      ],
+      'search': [
+        {name: 'tavily', desc: 'AI-optimized web search', installs: 21528},
+        {name: 'weather', desc: 'Get current weather and forecasts', installs: 96972},
+        {name: 'weather-api', desc: 'Weather API integration', installs: 1234}
+      ],
+      'writing': [
+        {name: 'feishu-create-doc', desc: 'Create Feishu cloud documents'},
+        {name: 'feishu-update-doc', desc: 'Update Feishu cloud documents'},
+        {name: 'content-writer', desc: 'Social media content generation'}
+      ],
+      'video/image': [
+        {name: 'nano-banana-pro', desc: 'Image generation via Gemini', installs: 52159},
+        {name: 'video-generator', desc: 'Video generation'}
+      ],
+      'work': [
+        {name: 'feishu-task', desc: 'Feishu task management', installs: 377},
+        {name: 'feishu-calendar', desc: 'Feishu calendar and schedule', installs: 3790},
+        {name: 'feishu-bitable', desc: 'Feishu multi-dimensional table', installs: 2959},
+        {name: 'feishu-im-read', desc: 'Feishu IM message reading'},
+        {name: 'xurl', desc: 'X (Twitter) API operations', installs: 4215},
+        {name: 'x', desc: 'X (Twitter) operations', installs: 1727}
+      ],
+      'coding': [
+        {name: 'coding-agent', desc: 'Delegate coding to Codex/Claude Code'},
+        {name: 'agent-browser', desc: 'Browser automation', installs: 135881},
+        {name: 'claude-code', desc: 'Claude Code coding agent', installs: 4114},
+        {name: 'codex', desc: 'Codex coding agent', installs: 87},
+        {name: 'gh-issues', desc: 'GitHub issues management'}
+      ],
+      'design': [
+        {name: 'frontend-design', desc: 'Create production-grade frontend interfaces'}
+      ],
+      'audio': [
+        {name: 'tts', desc: 'Text to speech conversion'}
+      ],
+      'ai': [
+        {name: 'skill-creator', desc: 'Create or update AgentSkills', installs: 42792},
+        {name: 'gemini', desc: 'Gemini CLI for Q&A and generation', installs: 22183},
+        {name: 'self-improving', desc: 'Self-reflection agent', installs: 75792}
+      ]
+    };
+
+    // Get all skills flattened for search
+    function getAllSkills() {
+      const all = [];
+      Object.keys(clawhubSkills).forEach(category => {
+        clawhubSkills[category].forEach(skill => {
+          all.push({...skill, category});
+        });
+      });
+      return all;
+    }
+
+    // Import from URL - Deep Analysis & Auto Generate
+    async function importFromUrl() {
+      const url = document.getElementById('importUrl').value.trim();
+      const importBtn = document.getElementById('importBtn');
+      const importStatus = document.getElementById('importStatus');
+      
+      if (!url) {
+        importStatus.classList.remove('hidden');
+        importStatus.className = 'mt-2 text-sm text-red-500';
+        importStatus.textContent = '请输入有效的链接';
+        return;
+      }
+      
+      importBtn.disabled = true;
+      importBtn.innerHTML = '<span class="animate-pulse">深度分析中...</span>';
+      importStatus.classList.add('hidden');
+      
+      try {
+        const response = await fetch('/api/import-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // 使用 LLM 结构化提取的数据
+          const skillData = data;
+          const rawContent = data.rawContent || '';
+          
+          // 填充表单
+          document.getElementById('skillName').value = skillData.skill_name || 'imported-skill';
+          document.getElementById('skillFunctionDesc').value = skillData.description || '';
+          document.getElementById('skillWhenToUse').value = skillData.trigger_condition || '';
+          
+          // 处理工作流指令
+          let instructions = skillData.instructions || rawContent;
+
+          // 确保 instructions 是字符串
+          if (Array.isArray(instructions)) {
+            instructions = instructions.join('\n');
+          } else if (typeof instructions !== 'string') {
+            instructions = String(instructions);
+          }
+
+          // 拆分工作流步骤
+          const container = document.getElementById('instructionsContainer');
+          container.innerHTML = '';
+          instructionStepCount = 0;
+
+          // 尝试按行拆分
+          const lines = instructions.split('\n').filter(l => l.trim().length > 10);
+          const steps = lines.length > 0 ? lines.slice(0, 6) : [instructions];
+          
+          steps.forEach((step, idx) => {
+            instructionStepCount++;
+            const div = document.createElement('div');
+            div.className = 'instruction-step flex gap-3 items-start fade-in';
+            div.innerHTML = `<div class="step-number w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 text-white flex items-center justify-center text-sm font-medium flex-shrink-0">${instructionStepCount}</div><textarea rows="3" class="instruction-text flex-1 px-4 py-3 border border-gray-200 rounded-xl input-focus outline-none transition-all resize-none" placeholder="输入执行步骤...">${step.trim().substring(0, 300)}</textarea><button type="button" onclick="removeInstructionStep(this)" class="btn-remove w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>`;
+            container.appendChild(div);
+          });
+          
+          // 自动生成
+          importStatus.classList.remove('hidden');
+          importStatus.className = 'mt-2 text-sm text-green-600';
+          importStatus.innerHTML = '✅ LLM 结构化提取完成！正在生成 Skill...';
+          
+          setTimeout(() => {
+            document.getElementById('skillForm').dispatchEvent(new Event('submit', { bubbles: true }));
+          }, 800);
+          
+          // 自动选择分类
+          const skillText = (skillData.skill_name + ' ' + skillData.description || '').toLowerCase();
+          let category = 'utility';
+          if (skillText.includes('code') || skillText.includes('编程') || skillText.includes('开发')) {
+            category = 'coding';
+          } else if (skillText.includes('写') || skillText.includes('文档') || skillText.includes('文章')) {
+            category = 'writing';
+          } else if (skillText.includes('ai') || skillText.includes('大模型') || skillText.includes('gpt')) {
+            category = 'ai';
+          } else if (skillText.includes('搜索') || skillText.includes('查询')) {
+            category = 'search';
+          } else if (skillText.includes('画') || skillText.includes('图片') || skillText.includes('视频')) {
+            category = 'creative';
+          } else if (skillText.includes('飞书') || skillText.includes('日历') || skillText.includes('任务') || skillText.includes('工作')) {
+            category = 'work';
+          }
+          
+          // Auto-select tools based on category
+          const categoryTools = {
+            'coding': ['coding-agent', 'agent-browser', 'github'],
+            'writing': ['feishu-create-doc', 'feishu-update-doc'],
+            'ai': ['gemini', 'skill-creator', 'self-improving'],
+            'search': ['tavily', 'weather'],
+            'creative': ['nano-banana-pro', 'tts'],
+            'work': ['feishu-task', 'feishu-calendar', 'feishu-bitable']
+          };
+          
+          if (categoryTools[category]) {
+            categoryTools[category].forEach(tool => {
+              if (!selectedTools.includes(tool)) {
+                selectedTools.push(tool);
+              }
+            });
+            renderSelectedTools();
+          }
+          
+          // Show success and auto-generate
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (error) {
+        importStatus.classList.remove('hidden');
+        importStatus.className = 'mt-2 text-sm text-red-500';
+        importStatus.textContent = '导入失败：' + error.message;
+      } finally {
+        importBtn.disabled = false;
+        importBtn.textContent = '导入';
+      }
+    }
+
+    // Parse URL parameter for skill from center page
+    function parseSkillFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      const skillParam = params.get('skill');
+      if (skillParam) {
+        // Add to selected tools
+        if (!selectedTools.includes(skillParam)) {
+          selectedTools.push(skillParam);
+          renderSelectedTools();
+        }
+        // Clear URL param
+        window.history.replaceState({}, '', window.location.pathname);
+        
+        // Scroll to tools section after a short delay to let the page render
+        setTimeout(() => {
+          const toolsSection = document.getElementById('toolCategory');
+          if (toolsSection) {
+            toolsSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Add highlight effect
+            toolsSection.parentElement.classList.add('ring-2', 'ring-purple-500');
+            setTimeout(() => {
+              toolsSection.parentElement.classList.remove('ring-2', 'ring-purple-500');
+            }, 2000);
+          }
+        }, 100);
+      }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      parseSkillFromURL();
+    });
+
+    function switchToolTab(tab) {
+      const dropdownPanel = document.getElementById('dropdownPanel');
+      const manualPanel = document.getElementById('manualPanel');
+      const tabDropdown = document.getElementById('tabDropdown');
+      const tabManual = document.getElementById('tabManual');
+      if (tab === 'dropdown') {
+        dropdownPanel.classList.remove('hidden');
+        manualPanel.classList.add('hidden');
+        tabDropdown.className = 'tab-active px-4 py-2 rounded-lg text-sm font-medium';
+        tabManual.className = 'tab-inactive px-4 py-2 rounded-lg text-sm font-medium';
+      } else {
+        dropdownPanel.classList.add('hidden');
+        manualPanel.classList.remove('hidden');
+        tabDropdown.className = 'tab-inactive px-4 py-2 rounded-lg text-sm font-medium';
+        tabManual.className = 'tab-active px-4 py-2 rounded-lg text-sm font-medium';
+      }
+    }
+
+    function loadCategorySkills() {
+      const category = document.getElementById('toolCategory').value;
+      const skillsDisplay = document.getElementById('skillsDisplay');
+      if (!category || !clawhubSkills[category]) {
+        skillsDisplay.innerHTML = '<p class="text-sm text-gray-400 text-center">选择工具类型后，这里会显示相关的高热 Skill</p>';
+        return;
+      }
+      
+      // Sort by installs (popularity)
+      const skills = [...clawhubSkills[category]].sort((a, b) => (b.installs || 0) - (a.installs || 0));
+      
+      skillsDisplay.innerHTML = `<p class="text-xs text-gray-500 mb-3">点击 Skill 添加到已选择列表（按热度排序）：</p>
+        <div class="flex flex-wrap gap-2">${skills.map(s => `<span class="skill-tag" onclick="selectTool('${s.name}')" title="${s.desc}">${s.name}${s.installs ? ` <span class="text-xs opacity-70">(${formatInstalls(s.installs)})</span>` : ''} <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg></span>`).join('')}</div>`;
+    }
+
+    function formatInstalls(num) {
+      if (num >= 1000) {
+        return (num / 1000).toFixed(1) + 'k';
+      }
+      return num;
+    }
+
+    function selectTool(toolName) {
+      if (!selectedTools.includes(toolName)) { selectedTools.push(toolName); renderSelectedTools(); }
+    }
+
+    function removeTool(toolName) { selectedTools = selectedTools.filter(t => t !== toolName); renderSelectedTools(); }
+
+    function renderSelectedTools() {
+      const container = document.getElementById('selectedTools');
+      if (selectedTools.length === 0) { container.innerHTML = ''; return; }
+      container.innerHTML = selectedTools.map(tool => `<span class="skill-tag selected">${tool}<button type="button" onclick="removeTool('${tool}')" class="ml-1 hover:text-red-400"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button></span>`).join('');
+    }
+
+    function addToolDropdown() {
+      const container = document.getElementById('toolDropdownsContainer');
+      const id = Date.now();
+      const div = document.createElement('div');
+      div.className = 'flex gap-3 items-start';
+      div.id = `dropdown-${id}`;
+      div.innerHTML = `<div class="flex-1"><select onchange="loadSkillsForDropdown(this, '${id}')" class="w-full px-4 py-2 border border-gray-200 rounded-lg input-focus outline-none bg-white text-sm"><option value="">选择工具类型...</option><option value="infrastructure">🏗️ Infrastructure</option><option value="creativity">🎨 Creativity</option><option value="search">🔎 Search</option><option value="writing">✍️ Writing</option><option value="video/image">🎬 Video/Image</option><option value="work">💼 Work</option><option value="coding">💻 Coding</option><option value="design">🎯 Design</option><option value="audio">🔊 Audio</option></select></div><button type="button" onclick="removeToolDropdown('${id}')" class="btn-remove px-2 py-1.5 rounded-lg text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>`;
+      container.appendChild(div);
+    }
+
+    // Toggle bundled resources section
+    function toggleBundledResources() {
+      const content = document.getElementById('bundledResourcesContent');
+      const arrow = document.getElementById('bundledResourcesArrow');
+      if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        arrow.classList.add('rotate-90');
+      } else {
+        content.classList.add('hidden');
+        arrow.classList.remove('rotate-90');
+      }
+    }
+
+    // Bundled Resources Functions
+    function addReference() {
+      const container = document.getElementById('referencesContainer');
+      const div = document.createElement('div');
+      div.className = 'reference-item flex gap-2 items-center fade-in';
+      div.innerHTML = `<input type="text" class="reference-name flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="文件名（如 api-docs.md）"><button type="button" onclick="removeReference(this)" class="btn-remove px-2 py-1 rounded-lg text-xs">删除</button>`;
+      container.appendChild(div);
+      updateReferenceButtons();
+    }
+
+    function removeReference(btn) {
+      btn.closest('.reference-item').remove();
+      updateReferenceButtons();
+    }
+
+    function updateReferenceButtons() {
+      const items = document.querySelectorAll('.reference-item');
+      items.forEach((item, i) => {
+        const btn = item.querySelector('.btn-remove');
+        btn.classList.toggle('hidden', items.length <= 1);
+      });
+    }
+
+    function addScript() {
+      const container = document.getElementById('scriptsContainer');
+      const id = Date.now();
+      const div = document.createElement('div');
+      div.className = 'script-item flex gap-2 items-center fade-in';
+      div.innerHTML = `<input type="text" class="script-name flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="文件名（如 process_data.py）"><label class="btn-add px-3 py-2 rounded-lg text-xs cursor-pointer inline-flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>上传<input type="file" class="script-file hidden" onchange="handleScriptUpload(this, '${id}')"></label><button type="button" onclick="removeScript(this)" class="btn-remove px-2 py-1 rounded-lg text-xs">删除</button>`;
+      container.appendChild(div);
+      updateScriptButtons();
+    }
+
+    function removeScript(btn) {
+      btn.closest('.script-item').remove();
+      updateScriptButtons();
+    }
+
+    function updateScriptButtons() {
+      const items = document.querySelectorAll('.script-item');
+      items.forEach((item, i) => {
+        const btn = item.querySelector('.btn-remove');
+        btn.classList.toggle('hidden', items.length <= 1);
+      });
+    }
+
+    function handleScriptUpload(input, id) {
+      const file = input.files[0];
+      if (file) {
+        const nameInput = input.closest('.script-item').querySelector('.script-name');
+        if (!nameInput.value) {
+          nameInput.value = file.name;
+        }
+        // Store file content for later use
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          input.dataset.content = e.target.result;
+        };
+        reader.readAsText(file);
+      }
+    }
+
+    function addAsset() {
+      const container = document.getElementById('assetsContainer');
+      const id = Date.now();
+      const div = document.createElement('div');
+      div.className = 'asset-item flex gap-2 items-center fade-in';
+      div.innerHTML = `<input type="text" class="asset-name flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" placeholder="文件名（如 template.html）"><label class="btn-add px-3 py-2 rounded-lg text-xs cursor-pointer inline-flex items-center gap-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>上传<input type="file" class="asset-file hidden" onchange="handleAssetUpload(this, '${id}')"></label><button type="button" onclick="removeAsset(this)" class="btn-remove px-2 py-1 rounded-lg text-xs">删除</button>`;
+      container.appendChild(div);
+      updateAssetButtons();
+    }
+
+    function removeAsset(btn) {
+      btn.closest('.asset-item').remove();
+      updateAssetButtons();
+    }
+
+    function updateAssetButtons() {
+      const items = document.querySelectorAll('.asset-item');
+      items.forEach((item, i) => {
+        const btn = item.querySelector('.btn-remove');
+        btn.classList.toggle('hidden', items.length <= 1);
+      });
+    }
+
+    function handleAssetUpload(input, id) {
+      const file = input.files[0];
+      if (file) {
+        const nameInput = input.closest('.asset-item').querySelector('.asset-name');
+        if (!nameInput.value) {
+          nameInput.value = file.name;
+        }
+        // Store file content for later use
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          input.dataset.content = e.target.result;
+        };
+        reader.readAsText(file);
+      }
+    }
+
+    // Get all bundled resources
+    function getBundledResources() {
+      const references = [];
+      document.querySelectorAll('.reference-item .reference-name').forEach(input => {
+        if (input.value.trim()) references.push({ name: input.value.trim(), type: 'reference' });
+      });
+
+      const scripts = [];
+      document.querySelectorAll('.script-item').forEach(item => {
+        const name = item.querySelector('.script-name').value.trim();
+        const file = item.querySelector('.script-file');
+        if (name) scripts.push({ name: name, content: file.dataset.content || '', type: 'script' });
+      });
+
+      const assets = [];
+      document.querySelectorAll('.asset-item').forEach(item => {
+        const name = item.querySelector('.asset-name').value.trim();
+        const file = item.querySelector('.asset-file');
+        if (name) assets.push({ name: name, content: file.dataset.content || '', type: 'asset' });
+      });
+
+      return { references, scripts, assets };
+    }
+
+    function loadSkillsForDropdown(select, id) {
+      const category = select.value;
+      const container = document.getElementById(`dropdown-${id}`);
+      const existing = container.querySelector('.skills-list');
+      if (existing) existing.remove();
+      if (!category || !clawhubSkills[category]) return;
+      const skills = clawhubSkills[category];
+      const div = document.createElement('div');
+      div.className = 'skills-list mt-2 p-3 bg-gray-50 rounded-lg';
+      div.innerHTML = `<div class="flex flex-wrap gap-2">${skills.map(s => `<span class="skill-tag" onclick="selectTool('${s.name}')">${s.name} <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg></span>`).join('')}</div>`;
+      container.appendChild(div);
+    }
+
+    function removeToolDropdown(id) { const el = document.getElementById(`dropdown-${id}`); if (el) el.remove(); }
+
+    function addInstructionStep() {
+      instructionStepCount++;
+      const container = document.getElementById('instructionsContainer');
+      const div = document.createElement('div');
+      div.className = 'instruction-step flex gap-3 items-start fade-in';
+      div.innerHTML = `<div class="step-number w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 text-white flex items-center justify-center text-sm font-medium flex-shrink-0">${instructionStepCount}</div><textarea rows="3" class="instruction-text flex-1 px-4 py-3 border border-gray-200 rounded-xl input-focus outline-none transition-all resize-none" placeholder="输入执行步骤..."></textarea><button type="button" onclick="removeInstructionStep(this)" class="btn-remove w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>`;
+      container.appendChild(div);
+      updateRemoveButtons();
+    }
+
+    function removeInstructionStep(btn) {
+      const step = btn.closest('.instruction-step');
+      step.remove();
+      const steps = document.querySelectorAll('.instruction-step');
+      steps.forEach((s, i) => { s.querySelector('.step-number').textContent = i + 1; });
+      instructionStepCount = steps.length;
+      updateRemoveButtons();
+    }
+
+    function updateRemoveButtons() {
+      const steps = document.querySelectorAll('.instruction-step');
+      steps.forEach((s, i) => {
+        const btn = s.querySelector('.btn-remove');
+        if (steps.length > 1) btn.classList.remove('hidden'); else btn.classList.add('hidden');
+      });
+    }
+
+    function getAllInstructions() {
+      const steps = document.querySelectorAll('.instruction-step .instruction-text');
+      const instructions = [];
+      steps.forEach(s => { if (s.value.trim()) instructions.push(s.value.trim()); });
+      return instructions;
+    }
+
+    function goToStep(step) {
+      for (let i = 1; i <= 3; i++) {
+        const el = document.getElementById(`step${i}`);
+        el.className = i <= step ? 'step-active px-4 py-2 rounded-full text-sm font-medium' : 'step-inactive px-4 py-2 rounded-full text-sm font-medium';
+      }
+      for (let i = 1; i <= 3; i++) {
+        const panel = document.getElementById(`step${i}-panel`);
+        i === step ? panel.classList.remove('hidden') : panel.classList.add('hidden');
+      }
+    }
+
+    document.getElementById('skillForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      skillName = document.getElementById('skillName').value.trim().toLowerCase().replace(/\s+/g, '-');
+      const functionDesc = document.getElementById('skillFunctionDesc').value.trim();
+      const whenToUse = document.getElementById('skillWhenToUse').value.trim();
+      const instructions = getAllInstructions();
+      const instructionsText = instructions.join('\n\n');
+      
+      let tools = '';
+      const manualPanelVisible = document.getElementById('manualPanel').classList.contains('hidden') === false;
+      if (manualPanelVisible) {
+        tools = document.getElementById('skillTools').value.trim();
+      } else {
+        tools = selectedTools.join(', ');
+      }
+
+      // Get bundled resources
+      const bundled = getBundledResources();
+
+      document.getElementById('loading').classList.remove('hidden');
+
+      try {
+        generatedSkillContent = generateSkillMarkdown(skillName, functionDesc, whenToUse, instructionsText, tools, bundled);
+        document.getElementById('previewContent').value = generatedSkillContent;
+        generatedBundledResources = bundled;
+        
+        // Save to My Skills immediately after generation
+        saveToMySkillsOnGenerate();
+        
+        goToStep(2);
+      } catch (error) {
+        console.error('Error:', error);
+        generatedSkillContent = generateSkillMarkdown(skillName, functionDesc, whenToUse, instructionsText, tools, bundled);
+        document.getElementById('previewContent').value = generatedSkillContent;
+        generatedBundledResources = bundled;
+        
+        // Save to My Skills immediately after generation
+        saveToMySkillsOnGenerate();
+        
+        goToStep(2);
+      } finally {
+        document.getElementById('loading').classList.add('hidden');
+      }
+    });
+
+    // Save to My Skills on generation (not after install)
+    function saveToMySkillsOnGenerate() {
+      const content = generatedSkillContent;
+      if (!content) return;
+      
+      // Get current user
+      let userId = null;
+      try {
+        const user = localStorage.getItem('currentUser');
+        if (user) {
+          userId = JSON.parse(user).email;
+        }
+      } catch(e) {}
+      
+      const skillData = {
+        id: Date.now(),
+        name: skillName,
+        content: content,
+        bundled: generatedBundledResources || getBundledResources(),
+        createdAt: new Date().toISOString(),
+        installed: false,
+        published: false,
+        userId: userId
+      };
+      
+      const allSkills = JSON.parse(localStorage.getItem('mySkills') || '[]');
+      
+      // Check if already exists (by name only)
+      const existingIndex = allSkills.findIndex(s => s.name === skillName);
+      if (existingIndex >= 0) {
+        allSkills[existingIndex] = { ...allSkills[existingIndex], ...skillData };
+      } else {
+        allSkills.unshift(skillData);
+      }
+      localStorage.setItem('mySkills', JSON.stringify(allSkills));
+    }
+
+    let generatedBundledResources = null;
+
+    function generateSkillMarkdown(name, functionDesc, whenToUse, instructions, tools, bundled) {
+      const toolsSection = tools ? `\n## 需要用到的工具\n\n${tools}\n` : '';
+      
+      // Build bundled resources info in SKILL.md
+      let resourcesSection = '';
+      if (bundled && (bundled.references.length > 0 || bundled.scripts.length > 0 || bundled.assets.length > 0)) {
+        resourcesSection = `\n## 附加资源\n\n`;
+        if (bundled.references.length > 0) {
+          resourcesSection += `### references/\n${bundled.references.map(r => `- ${r.name}`).join('\n')}\n\n`;
+        }
+        if (bundled.scripts.length > 0) {
+          resourcesSection += `### scripts/\n${bundled.scripts.map(s => `- ${s.name}`).join('\n')}\n\n`;
+        }
+        if (bundled.assets.length > 0) {
+          resourcesSection += `### assets/\n${bundled.assets.map(a => `- ${a.name}`).join('\n')}\n`;
+        }
+      }
+      
+      return `---
+name: ${name}
+description: |
+  ${functionDesc}
+  
+  **使用场景**: ${whenToUse}
+---
+
+# ${name.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+
+## 功能说明
+
+${functionDesc}
+
+## 何时使用
+
+${whenToUse}
+
+## 运行指令
+
+${instructions}
+${toolsSection}${resourcesSection}
+`;
+    }
+
+    function regenerate() {
+      document.getElementById('loading').classList.remove('hidden');
+      setTimeout(() => {
+        generatedSkillContent = document.getElementById('previewContent').value;
+        document.getElementById('loading').classList.add('hidden');
+      }, 500);
+    }
+
+    function downloadSkill() {
+      const content = document.getElementById('previewContent').value || generatedSkillContent;
+      const bundled = generatedBundledResources || getBundledResources();
+      
+      // Create zip file with SKILL.md and all bundled resources
+      const zip = new JSZip();
+      
+      // Add SKILL.md
+      zip.file("SKILL.md", content);
+      
+      // Add references/
+      if (bundled.references && bundled.references.length > 0) {
+        const refsFolder = zip.folder("references");
+        bundled.references.forEach(ref => {
+          refsFolder.file(ref.name, ref.content || '');
+        });
+      }
+      
+      // Add scripts/
+      if (bundled.scripts && bundled.scripts.length > 0) {
+        const scriptsFolder = zip.folder("scripts");
+        bundled.scripts.forEach(script => {
+          scriptsFolder.file(script.name, script.content || '');
+        });
+      }
+      
+      // Add assets/
+      if (bundled.assets && bundled.assets.length > 0) {
+        const assetsFolder = zip.folder("assets");
+        bundled.assets.forEach(asset => {
+          assetsFolder.file(asset.name, asset.content || '');
+        });
+      }
+      
+      // Generate and download zip
+      zip.generateAsync({type:"blob"}).then(function(content) {
+        const url = URL.createObjectURL(content);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = skillName + '.zip';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    async function installSkill() {
+      const installBtn = document.getElementById('installBtn');
+      const installStatus = document.getElementById('installStatus');
+      const installMessage = document.getElementById('installMessage');
+      installBtn.disabled = true;
+      installBtn.innerHTML = '<span class="animate-pulse-slow">安装中...</span>';
+      const content = document.getElementById('previewContent').value || generatedSkillContent;
+      const bundled = generatedBundledResources || getBundledResources();
+      
+      try {
+        const response = await fetch('/api/skills/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: skillName, content: content, bundled: bundled })
+        });
+        if (response.ok) {
+          installStatus.classList.remove('hidden');
+          installMessage.className = 'text-sm text-green-600';
+          installMessage.innerHTML = '✅ 安装成功！ Skill 已添加到你的 OpenClaw';
+          installBtn.innerHTML = '✅ 已安装';
+        } else { throw new Error('Install failed'); }
+      } catch (error) {
+        installStatus.classList.remove('hidden');
+        installMessage.className = 'text-sm text-yellow-600';
+        installMessage.innerHTML = '⚠️ 自动安装暂不可用，请使用手动安装方式';
+        installBtn.innerHTML = '❌ 安装失败';
+        try { await navigator.clipboard.writeText(content); installMessage.innerHTML += '<br>📋 SKILL.md 内容已复制到剪贴板'; } catch (e) { console.error('Copy failed:', e); }
+      }
+      installBtn.disabled = false;
+    }
+
+    // Publish to Skill Center (save to shared storage - simulates publishing to Skill Center)
+    function publishToSkillCenter() {
+      const publishBtn = document.getElementById('publishBtn');
+      const publishStatus = document.getElementById('installStatus');
+      const publishMessage = document.getElementById('installMessage');
+      
+      // Check if user is logged in
+      let userId = null;
+      try {
+        const user = localStorage.getItem('currentUser');
+        if (user) {
+          userId = JSON.parse(user).email;
+        }
+      } catch(e) {}
+      
+      if (!userId) {
+        publishStatus.classList.remove('hidden');
+        publishMessage.className = 'text-sm text-yellow-600';
+        publishMessage.innerHTML = '⚠️ 请先登录后再发布';
+        return;
+      }
+      
+      const content = document.getElementById('previewContent').value || generatedSkillContent;
+      
+      // Determine category based on content
+      let category = 'utility';
+      const contentLower = content.toLowerCase();
+      if (contentLower.includes('code') || contentLower.includes('编程') || contentLower.includes('开发')) {
+        category = 'coding';
+      } else if (contentLower.includes('写') || contentLower.includes('文档') || contentLower.includes('文章')) {
+        category = 'writing';
+      } else if (contentLower.includes('ai') || contentLower.includes('大模型') || contentLower.includes('gpt')) {
+        category = 'ai';
+      } else if (contentLower.includes('搜索') || contentLower.includes('查询')) {
+        category = 'search';
+      } else if (contentLower.includes('画') || contentLower.includes('图片') || contentLower.includes('视频')) {
+        category = 'creative';
+      } else if (contentLower.includes('飞书') || contentLower.includes('日历') || contentLower.includes('任务')) {
+        category = 'work';
+      }
+      
+      // Create skill object for Skill Center
+      const skillData = {
+        id: Date.now(),
+        name: skillName,
+        content: content,
+        bundled: generatedBundledResources || getBundledResources(),
+        description: content.match(/description:\s*\|\s*([\s\S]*?)---/)?.[1]?.trim() || '',
+        createdAt: new Date().toISOString(),
+        published: true,
+        likes: 0,
+        author: userId,
+        userId: userId,
+        category: category
+      };
+      
+      // Save to Skill Center (shared storage - simulated)
+      const skillCenterSkills = JSON.parse(localStorage.getItem('skillCenterSkills') || '[]');
+      
+      // Check if already published by this user
+      if (skillCenterSkills.some(s => s.name === skillName && s.userId === userId)) {
+        publishStatus.classList.remove('hidden');
+        publishMessage.className = 'text-sm text-yellow-600';
+        publishMessage.innerHTML = '⚠️ 你已发布过此 Skill';
+        return;
+      }
+      
+      skillCenterSkills.unshift(skillData);
+      localStorage.setItem('skillCenterSkills', JSON.stringify(skillCenterSkills));
+      
+      // Also save to mySkills with user ID
+      const allMySkills = JSON.parse(localStorage.getItem('mySkills') || '[]');
+      const existingIndex = allMySkills.findIndex(s => s.name === skillName && s.userId === userId);
+      const mySkillData = { ...skillData, installed: false };
+      if (existingIndex >= 0) {
+        allMySkills[existingIndex] = { ...allMySkills[existingIndex], ...mySkillData, published: true };
+      } else {
+        allMySkills.unshift({ ...mySkillData, userId: userId });
+      }
+      localStorage.setItem('mySkills', JSON.stringify(allMySkills));
+      
+      // Update UI
+      publishStatus.classList.remove('hidden');
+      publishMessage.className = 'text-sm text-green-600';
+      publishMessage.innerHTML = '✅ 已发布到 Skill 中心！<br>其他人可以搜索并使用你的 Skill';
+      publishBtn.innerHTML = '✅ 已发布';
+      publishBtn.disabled = true;
+    }
+
+    // Save to My Skills (called after successful install)
+    function saveToMySkills() {
+      const content = document.getElementById('previewContent').value || generatedSkillContent;
+      
+      // Get current user
+      let userId = null;
+      try {
+        const user = localStorage.getItem('currentUser');
+        if (user) {
+          userId = JSON.parse(user).email;
+        }
+      } catch(e) {}
+      
+      const skillData = {
+        id: Date.now(),
+        name: skillName,
+        content: content,
+        bundled: generatedBundledResources || getBundledResources(),
+        createdAt: new Date().toISOString(),
+        installed: true,
+        userId: userId
+      };
+      
+      const allSkills = JSON.parse(localStorage.getItem('mySkills') || '[]');
+      
+      // Filter by user and check if already exists
+      const existingIndex = allSkills.findIndex(s => s.name === skillName && s.userId === userId);
+      if (existingIndex >= 0) {
+        allSkills[existingIndex] = { ...allSkills[existingIndex], ...skillData, installed: true };
+      } else {
+        allSkills.unshift(skillData);
+      }
+      localStorage.setItem('mySkills', JSON.stringify(allSkills));
+    }
+
+    // Auto-save when installing
+    const originalInstallSkill = installSkill;
+    installSkill = async function() {
+      await originalInstallSkill();
+      saveToMySkills();
+    };
+
+    document.getElementById('previewContent').addEventListener('input', function() { generatedSkillContent = this.value; });
+
+    // ===== User Authentication System =====
+    let currentUser = null;
+
+    function checkAuth() {
+      try {
+        const user = localStorage.getItem('currentUser');
+        if (user) {
+          currentUser = JSON.parse(user);
+          updateAuthUI();
+        }
+      } catch(e) {}
+    }
+
+    function updateAuthUI() {
+      const authSection = document.getElementById('userAuthSection');
+      const infoSection = document.getElementById('userInfoSection');
+      const nameDisplay = document.getElementById('userNameDisplay');
+      
+      if (currentUser) {
+        authSection.classList.add('hidden');
+        infoSection.classList.remove('hidden');
+        nameDisplay.textContent = currentUser.name || currentUser.email;
+      } else {
+        authSection.classList.remove('hidden');
+        infoSection.classList.add('hidden');
+      }
+    }
+
+    function openAuthModal(mode) {
+      const modal = document.getElementById('authModal');
+      const title = document.getElementById('authTitle');
+      const submitBtn = document.getElementById('authSubmitBtn');
+      
+      if (mode === 'login') {
+        title.textContent = '登录';
+        submitBtn.textContent = '登录';
+        document.getElementById('authNameGroup').classList.add('hidden');
+      } else {
+        title.textContent = '注册';
+        submitBtn.textContent = '注册';
+        document.getElementById('authNameGroup').classList.remove('hidden');
+      }
+      
+      document.getElementById('authMode').value = mode;
+      modal.classList.remove('hidden');
+    }
+
+    function closeAuthModal() {
+      document.getElementById('authModal').classList.add('hidden');
+      document.getElementById('authEmail').value = '';
+      document.getElementById('authPassword').value = '';
+      document.getElementById('authName').value = '';
+      document.getElementById('authError').classList.add('hidden');
+    }
+
+    function handleAuth() {
+      const mode = document.getElementById('authMode').value;
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value;
+      const name = document.getElementById('authName').value.trim();
+      const errorEl = document.getElementById('authError');
+      
+      if (!email || !password) {
+        errorEl.textContent = '请填写邮箱和密码';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+      
+      if (mode === 'register' && !name) {
+        errorEl.textContent = '请填写用户名';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+      
+      try {
+        // Get existing users
+        const users = JSON.parse(localStorage.getItem('users') || '[]');
+        
+        if (mode === 'login') {
+          // Find user
+          const user = users.find(u => u.email === email && u.password === password);
+          if (user) {
+            currentUser = { email: user.email, name: user.name };
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            closeAuthModal();
+            updateAuthUI();
+          } else {
+            errorEl.textContent = '邮箱或密码错误';
+            errorEl.classList.remove('hidden');
+          }
+        } else {
+          // Register
+          if (users.find(u => u.email === email)) {
+            errorEl.textContent = '该邮箱已被注册';
+            errorEl.classList.remove('hidden');
+            return;
+          }
+          
+          users.push({ email, password, name, createdAt: new Date().toISOString() });
+          localStorage.setItem('users', JSON.stringify(users));
+          
+          // Auto login
+          currentUser = { email, name };
+          localStorage.setItem('currentUser', JSON.stringify(currentUser));
+          closeAuthModal();
+          updateAuthUI();
+        }
+      } catch(e) {
+        errorEl.textContent = '操作失败，请重试';
+        errorEl.classList.remove('hidden');
+      }
+    }
+
+    function logout() {
+      currentUser = null;
+      localStorage.removeItem('currentUser');
+      updateAuthUI();
+    }
+
+    // Initialize auth
+    checkAuth();
+  </script>
+
+  <!-- Auth Modal -->
+  <div id="authModal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
+    <div class="modal-content bg-white rounded-2xl card-shadow max-w-md w-full p-6">
+      <div class="flex items-center justify-between mb-6">
+        <h3 id="authTitle" class="text-xl font-bold text-gray-800">登录</h3>
+        <button onclick="closeAuthModal()" class="p-2 hover:bg-gray-100 rounded-lg">
+          <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      
+      <input type="hidden" id="authMode" value="login">
+      
+      <div id="authNameGroup" class="hidden mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2">用户名</label>
+        <input type="text" id="authName" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus outline-none" placeholder="请输入用户名">
+      </div>
+      
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2">邮箱</label>
+        <input type="email" id="authEmail" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus outline-none" placeholder="请输入邮箱">
+      </div>
+      
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2">密码</label>
+        <input type="password" id="authPassword" class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus outline-none" placeholder="请输入密码">
+      </div>
+      
+      <div id="authError" class="hidden text-sm text-red-500 mb-4"></div>
+      
+      <button onclick="handleAuth()" id="authSubmitBtn" class="btn-primary w-full py-3 rounded-xl text-white font-medium">
+        登录
+      </button>
+      
+      <p class="text-center text-sm text-gray-500 mt-4">
+        <span id="authToggleText">还没有账号？</span>
+        <button onclick="openAuthModal(document.getElementById('authMode').value === 'login' ? 'register' : 'login')" class="text-purple-600 hover:underline">
+          <span id="authToggleBtnText">立即注册</span>
+        </button>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

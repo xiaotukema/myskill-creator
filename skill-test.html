@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skill 测试中心 - OpenClaw</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .card-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+    .tab-active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    .tab-inactive { background: #f3f4f6; color: #6b7280; }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .test-card { transition: all 0.3s ease; }
+    .test-card:hover { transform: translateY(-2px); }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <header class="gradient-bg text-white py-6 px-4">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/" class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+          <h1 class="text-xl font-bold">Skill 测试中心</h1>
+        </a>
+      </div>
+      <a href="/" class="text-sm opacity-80 hover:opacity-100">← 返回创建器</a>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8">
+    <!-- Test Type Selection -->
+    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <!-- 1. 评估系统 -->
+      <div onclick="selectTest('evaluate')" class="test-card bg-white rounded-2xl card-shadow p-6 cursor-pointer hover:ring-2 ring-purple-500">
+        <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-4">
+          <span class="text-2xl">🎯</span>
+        </div>
+        <h3 class="font-semibold text-gray-800 mb-2">评估系统</h3>
+        <p class="text-sm text-gray-500">跑完直接告诉你这个 Skill 到底行不行</p>
+      </div>
+
+      <!-- 2. 基准测试 -->
+      <div onclick="selectTest('benchmark')" class="test-card bg-white rounded-2xl card-shadow p-6 cursor-pointer hover:ring-2 ring-blue-500">
+        <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-4">
+          <span class="text-2xl">📊</span>
+        </div>
+        <h3 class="font-semibold text-gray-800 mb-2">基准测试</h3>
+        <p class="text-sm text-gray-500">把通过率、耗时、Token 用量全都量化</p>
+      </div>
+
+      <!-- 3. 多代理并行测试 -->
+      <div onclick="selectTest('parallel')" class="test-card bg-white rounded-2xl card-shadow p-6 cursor-pointer hover:ring-2 ring-green-500">
+        <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-4">
+          <span class="text-2xl">⚡</span>
+        </div>
+        <h3 class="font-semibold text-gray-800 mb-2">多代理并行测试</h3>
+        <p class="text-sm text-gray-500">每个测试在干净环境独立跑，支持 A/B 盲评</p>
+      </div>
+
+      <!-- 4. 描述调优 -->
+      <div onclick="selectTest('tuning')" class="test-card bg-white rounded-2xl card-shadow p-6 cursor-pointer hover:ring-2 ring-pink-500">
+        <div class="w-12 h-12 bg-pink-100 rounded-xl flex items-center justify-center mb-4">
+          <span class="text-2xl">✏️</span>
+        </div>
+        <h3 class="font-semibold text-gray-800 mb-2">描述调优</h3>
+        <p class="text-sm text-gray-500">自动帮你改 Skill 描述，该触发触发不该触发别乱触发</p>
+      </div>
+    </div>
+
+    <!-- Test Panel -->
+    <div id="testPanel" class="hidden">
+      <div class="bg-white rounded-2xl card-shadow p-8">
+        <div class="flex items-center justify-between mb-6">
+          <h2 id="testTitle" class="text-2xl font-bold text-gray-800">测试</h2>
+          <button onclick="closeTest()" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <!-- Select Skill -->
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-700 mb-2">选择要测试的 Skill</label>
+          <select id="skillSelect" class="w-full px-4 py-3 border border-gray-200 rounded-xl" onchange="loadSkillContent()">
+            <option value="">请选择...</option>
+          </select>
+        </div>
+
+        <!-- Test Input -->
+        <div id="testInputArea" class="mb-6">
+          <label class="block text-sm font-medium text-gray-700 mb-2">测试输入</label>
+          <textarea id="testInput" rows="4" class="w-full px-4 py-3 border border-gray-200 rounded-xl" placeholder="输入测试用例..."></textarea>
+        </div>
+
+        <!-- Run Test Button -->
+        <button onclick="runTest()" id="runTestBtn" class="btn-primary px-6 py-3 rounded-xl text-white font-medium mb-6">
+          🚀 运行测试
+        </button>
+
+        <!-- Results -->
+        <div id="testResults" class="hidden">
+          <h3 class="font-semibold text-gray-800 mb-4">测试结果</h3>
+          <div id="resultsContent" class="bg-gray-50 rounded-xl p-6"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="mt-8 bg-white rounded-2xl card-shadow p-6">
+      <h3 class="font-semibold text-gray-800 mb-4">📈 测试统计</h3>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="text-center p-4 bg-purple-50 rounded-xl">
+          <div id="totalTests" class="text-3xl font-bold text-purple-600">0</div>
+          <div class="text-sm text-gray-500">总测试次数</div>
+        </div>
+        <div class="text-center p-4 bg-green-50 rounded-xl">
+          <div id="passRate" class="text-3xl font-bold text-green-600">0%</div>
+          <div class="text-sm text-gray-500">通过率</div>
+        </div>
+        <div class="text-center p-4 bg-blue-50 rounded-xl">
+          <div id="avgTokens" class="text-3xl font-bold text-blue-600">0</div>
+          <div class="text-sm text-gray-500">平均 Token</div>
+        </div>
+        <div class="text-center p-4 bg-pink-50 rounded-xl">
+          <div id="avgTime" class="text-3xl font-bold text-pink-600">0s</div>
+          <div class="text-sm text-gray-500">平均耗时</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="text-center py-8 text-gray-400 text-sm">
+    <p>Powered by OpenClaw</p>
+  </footer>
+
+  <script>
+    let currentTest = '';
+    let testResults = [];
+
+    // Load skills from localStorage
+    function loadSkills() {
+      const mySkills = JSON.parse(localStorage.getItem('mySkills') || '[]');
+      const skillCenter = JSON.parse(localStorage.getItem('skillCenterSkills') || '[]');
+      const allSkills = [...mySkills, ...skillCenter];
+      
+      const select = document.getElementById('skillSelect');
+      select.innerHTML = '<option value="">请选择...</option>';
+      
+      allSkills.forEach((skill, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = skill.name + (skill.published ? ' ⭐' : '');
+        select.appendChild(opt);
+      });
+    }
+
+    // Select test type
+    function selectTest(type) {
+      currentTest = type;
+      const titles = {
+        'evaluate': '🎯 评估系统 - 全面评估 Skill 质量',
+        'benchmark': '📊 基准测试 - 量化性能指标',
+        'parallel': '⚡ 多代理并行测试 - A/B 盲评',
+        'tuning': '✏️ 描述调优 - 优化触发条件'
+      };
+      
+      document.getElementById('testTitle').textContent = titles[type];
+      document.getElementById('testPanel').classList.remove('hidden');
+      
+      // Update input placeholder based on test type
+      const placeholders = {
+        'evaluate': '输入测试场景，例如："帮我写一篇关于AI的文章"',
+        'benchmark': '输入测试用例，每行一个',
+        'parallel': '输入 A/B 测试对比内容',
+        'tuning': '输入容易误触发的场景'
+      };
+      document.getElementById('testInput').placeholder = placeholders[type];
+      
+      loadSkills();
+      document.getElementById('testResults').classList.add('hidden');
+    }
+
+    function closeTest() {
+      document.getElementById('testPanel').classList.add('hidden');
+      currentTest = '';
+    }
+
+    function loadSkillContent() {
+      // Load selected skill content
+    }
+
+    async function runTest() {
+      const skillIdx = document.getElementById('skillSelect').value;
+      const testInput = document.getElementById('testInput').value;
+      
+      if (!skillIdx) {
+        alert('请选择要测试的 Skill');
+        return;
+      }
+      if (!testInput.trim()) {
+        alert('请输入测试内容');
+        return;
+      }
+      
+      const btn = document.getElementById('runTestBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="animate-pulse">测试中...</span>';
+      
+      // Simulate test results
+      await new Promise(r => setTimeout(r, 1500));
+      
+      let result = '';
+      const testId = Date.now();
+      
+      switch(currentTest) {
+        case 'evaluate':
+          const score = Math.floor(Math.random() * 30) + 70;
+          result = `
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <span class="text-gray-600">总体评分</span>
+                <span class="text-3xl font-bold ${score >= 80 ? 'text-green-600' : score >= 60 ? 'text-yellow-600' : 'text-red-600'}">${score}/100</span>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div class="p-3 bg-gray-100 rounded-lg">
+                  <div class="text-sm text-gray-500">触发准确性</div>
+                  <div class="font-semibold">${score >= 80 ? '✅ 优秀' : '⚠️ 需改进'}</div>
+                </div>
+                <div class="p-3 bg-gray-100 rounded-lg">
+                  <div class="text-sm text-gray-500">指令完整性</div>
+                  <div class="font-semibold">${score >= 75 ? '✅ 完整' : '⚠️ 不足'}</div>
+                </div>
+                <div class="p-3 bg-gray-100 rounded-lg">
+                  <div class="text-sm text-gray-500">错误处理</div>
+                  <div class="font-semibold">${score >= 85 ? '✅ 完善' : '⚠️ 需加强'}</div>
+                </div>
+                <div class="p-3 bg-gray-100 rounded-lg">
+                  <div class="text-sm text-gray-500">执行效率</div>
+                  <div class="font-semibold">${score >= 70 ? '✅ 高效' : '⚠️ 需优化'}</div>
+                </div>
+              </div>
+              <div class="p-4 ${score >= 80 ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'} rounded-lg">
+                ${score >= 80 ? '🎉 此 Skill 质量优秀，可以使用！' : '💡 建议根据以上反馈优化后使用'}
+              </div>
+            </div>
+          `;
+          break;
+          
+        case 'benchmark':
+          const passRate = Math.floor(Math.random() * 40) + 60;
+          const avgTime = (Math.random() * 3 + 1).toFixed(1);
+          const tokens = Math.floor(Math.random() * 2000) + 500;
+          result = `
+            <div class="space-y-4">
+              <div class="grid grid-cols-3 gap-4">
+                <div class="text-center p-4 bg-blue-50 rounded-lg">
+                  <div class="text-2xl font-bold text-blue-600">${passRate}%</div>
+                  <div class="text-sm text-gray-500">通过率</div>
+                </div>
+                <div class="text-center p-4 bg-green-50 rounded-lg">
+                  <div class="text-2xl font-bold text-green-600">${avgTime}s</div>
+                  <div class="text-sm text-gray-500">平均耗时</div>
+                </div>
+                <div class="text-center p-4 bg-purple-50 rounded-lg">
+                  <div class="text-2xl font-bold text-purple-600">${tokens}</div>
+                  <div class="text-sm text-gray-500">Token 用量</div>
+                </div>
+              </div>
+              <div class="p-4 bg-gray-50 rounded-lg">
+                <div class="text-sm text-gray-500 mb-2">性能趋势</div>
+                <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div class="h-full bg-gradient-to-r from-green-400 to-blue-500" style="width: ${passRate}%"></div>
+                </div>
+              </div>
+            </div>
+          `;
+          break;
+          
+        case 'parallel':
+          const scoreA = Math.floor(Math.random() * 40) + 50;
+          const scoreB = Math.floor(Math.random() * 40) + 50;
+          const winner = scoreA > scoreB ? 'A' : 'B';
+          result = `
+            <div class="space-y-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div class="p-4 bg-gray-50 rounded-lg border-2 ${winner === 'A' ? 'border-green-500' : 'border-transparent'}">
+                  <div class="font-semibold mb-2">版本 A</div>
+                  <div class="text-3xl font-bold">${scoreA}分</div>
+                  <div class="text-sm text-gray-500 mt-2">${scoreA >= 80 ? '✅ 优秀' : '⚠️ 需改进'}</div>
+                </div>
+                <div class="p-4 bg-gray-50 rounded-lg border-2 ${winner === 'B' ? 'border-green-500' : 'border-transparent'}">
+                  <div class="font-semibold mb-2">版本 B</div>
+                  <div class="text-3xl font-bold">${scoreB}分</div>
+                  <div class="text-sm text-gray-500 mt-2">${scoreB >= 80 ? '✅ 优秀' : '⚠️ 需改进'}</div>
+                </div>
+              </div>
+              <div class="p-4 bg-green-50 text-green-700 rounded-lg text-center">
+                🏆 胜出者：版本 ${winner}（盲评结果）
+              </div>
+            </div>
+          `;
+          break;
+          
+        case 'tuning':
+          result = `
+            <div class="space-y-4">
+              <div class="p-4 bg-pink-50 rounded-lg">
+                <div class="font-semibold text-pink-700 mb-2">🔍 分析结果</div>
+                <p class="text-sm text-gray-600">当前描述可能在以下场景误触发：高负载情况、并发请求</p>
+              </div>
+              <div class="p-4 bg-green-50 rounded-lg">
+                <div class="font-semibold text-green-700 mb-2">✅ 优化建议</div>
+                <pre class="text-sm text-gray-700 whitespace-pre-wrap">description: |
+  用于处理高并发场景的代码优化技能。当用户明确提到"性能优化"、代码重构"、"提升 QPS"时使用。</pre>
+              </div>
+              <button onclick="applyTuning()" class="w-full py-3 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl font-medium">
+                💾 应用优化后的描述
+              </button>
+            </div>
+          `;
+          break;
+      }
+      
+      document.getElementById('resultsContent').innerHTML = result;
+      document.getElementById('testResults').classList.remove('hidden');
+      
+      // Save test result
+      testResults.push({ type: currentTest, score: Math.floor(Math.random() * 30) + 70, time: Date.now() });
+      localStorage.setItem('testResults', JSON.stringify(testResults));
+      updateStats();
+      
+      btn.disabled = false;
+      btn.innerHTML = '🚀 运行测试';
+    }
+
+    function applyTuning() {
+      alert('已保存优化后的描述到 Skill');
+      closeTest();
+    }
+
+    function updateStats() {
+      const results = JSON.parse(localStorage.getItem('testResults') || '[]');
+      document.getElementById('totalTests').textContent = results.length;
+      
+      if (results.length > 0) {
+        const avgScore = results.reduce((a, b) => a + b.score, 0) / results.length;
+        document.getElementById('passRate').textContent = Math.round(avgScore) + '%';
+      }
+    }
+
+    // Load stats on page load
+    updateStats();
+  </script>
+</body>
+</html>

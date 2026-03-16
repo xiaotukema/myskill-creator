@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的 Skill - OpenClaw Skill Creator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .card-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+    .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.12); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <header class="gradient-bg text-white py-6 px-4">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/" class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <h1 class="text-xl font-bold">我的 Skill</h1>
+        </a>
+      </div>
+      <a href="/" class="text-sm opacity-80 hover:opacity-100">← 返回创建器</a>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8">
+    <!-- Stats -->
+    <div class="bg-white rounded-2xl card-shadow p-6 mb-8">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-800" id="skillCount">0</h2>
+          <p class="text-gray-500">已生成的 Skills</p>
+        </div>
+        <div class="flex gap-4">
+          <button onclick="clearAllSkills()" class="text-sm text-red-500 hover:text-red-600">清空全部</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Skills List -->
+    <div id="skillsList" class="space-y-4">
+      <!-- Skills will be rendered here -->
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="hidden text-center py-16">
+      <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      </div>
+      <h3 class="text-xl font-semibold text-gray-600 mb-2">暂无生成的 Skill</h3>
+      <p class="text-gray-400 mb-6">开始创建你的第一个 Skill 吧！</p>
+      <a href="/" class="btn-primary px-6 py-3 rounded-xl text-white font-medium inline-flex">
+        创建新 Skill
+      </a>
+    </div>
+
+    <!-- Install Status Toast -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 rounded-xl shadow-lg hidden">
+      <span id="toastMessage"></span>
+    </div>
+  </main>
+
+  <footer class="text-center py-8 text-gray-400 text-sm">
+    <p>数据保存在本地浏览器中</p>
+  </footer>
+
+  <script>
+    let mySkills = [];
+    let currentUser = null;
+
+    // Get current user
+    function getCurrentUser() {
+      try {
+        const user = localStorage.getItem('currentUser');
+        return user ? JSON.parse(user) : null;
+      } catch(e) {
+        return null;
+      }
+    }
+
+    // Load skills from localStorage (show all for now, filter by user if logged in)
+    function loadSkills() {
+      currentUser = getCurrentUser();
+      const allSkills = JSON.parse(localStorage.getItem('mySkills') || '[]');
+      
+      // Show all skills if not logged in, otherwise filter by user
+      if (currentUser) {
+        mySkills = allSkills.filter(s => s.userId === currentUser.email);
+      } else {
+        mySkills = allSkills;
+      }
+      renderSkills();
+    }
+
+    // Save skills to localStorage
+    function saveSkills() {
+      const allSkills = JSON.parse(localStorage.getItem('mySkills') || '[]');
+      const otherSkills = allSkills.filter(s => s.userId !== currentUser.email);
+      const newAllSkills = [...otherSkills, ...mySkills];
+      localStorage.setItem('mySkills', JSON.stringify(newAllSkills));
+    }
+
+    // Render skills list
+    function renderSkills() {
+      const container = document.getElementById('skillsList');
+      const emptyState = document.getElementById('emptyState');
+      const countEl = document.getElementById('skillCount');
+      
+      countEl.textContent = mySkills.length;
+      
+      if (mySkills.length === 0) {
+        container.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      
+      container.classList.remove('hidden');
+      emptyState.classList.add('hidden');
+      
+      container.innerHTML = mySkills.map((skill, index) => `
+        <div class="bg-white rounded-2xl card-shadow card-hover p-6 fade-in">
+          <div class="flex items-start justify-between">
+            <div class="flex-1">
+              <div class="flex items-center gap-3 mb-2">
+                <h3 class="text-xl font-bold text-gray-800">${skill.name}</h3>
+                ${skill.installed ? '<span class="text-xs bg-green-100 text-green-600 px-2 py-1 rounded-full">已安装</span>' : ''}
+                ${skill.published ? '<span class="text-xs bg-pink-100 text-pink-600 px-2 py-1 rounded-full">已发布</span>' : ''}
+              </div>
+              <p class="text-gray-500 text-sm mb-2">创建于：${new Date(skill.createdAt).toLocaleString('zh-CN')}</p>
+              <p class="text-gray-600 text-sm line-clamp-2 font-mono bg-gray-50 p-2 rounded">${skill.content ? skill.content.substring(0, 200) : '(无内容)'}...</p>
+            </div>
+          </div>
+          
+          <div class="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
+            <button onclick="downloadSkill(${index})" class="flex-1 min-w-[100px] text-center py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">
+              📥 下载
+            </button>
+            <button onclick="installSkill(${index})" class="flex-1 min-w-[100px] text-center py-2 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-lg text-sm font-medium text-white transition-colors">
+              ⚡ 安装
+            </button>
+            ${!skill.published ? `<button onclick="publishSkill(${index})" class="flex-1 min-w-[100px] text-center py-2 px-4 bg-pink-500 hover:bg-pink-600 rounded-lg text-sm font-medium text-white transition-colors">
+              📤 发布
+            </button>` : ''}
+            <button onclick="deleteSkill(${index})" class="flex-1 min-w-[80px] text-center py-2 px-4 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg text-sm font-medium transition-colors">
+              🗑️
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Download skill - with all bundled resources as zip
+    function downloadSkill(index) {
+      const skill = mySkills[index];
+      const bundled = skill.bundled || { references: [], scripts: [], assets: [] };
+      
+      // Create zip file with SKILL.md and all bundled resources
+      const zip = new JSZip();
+      
+      // Add SKILL.md
+      zip.file("SKILL.md", skill.content);
+      
+      // Add references/
+      if (bundled.references && bundled.references.length > 0) {
+        const refsFolder = zip.folder("references");
+        bundled.references.forEach(ref => {
+          refsFolder.file(ref.name, ref.content || '');
+        });
+      }
+      
+      // Add scripts/
+      if (bundled.scripts && bundled.scripts.length > 0) {
+        const scriptsFolder = zip.folder("scripts");
+        bundled.scripts.forEach(script => {
+          scriptsFolder.file(script.name, script.content || '');
+        });
+      }
+      
+      // Add assets/
+      if (bundled.assets && bundled.assets.length > 0) {
+        const assetsFolder = zip.folder("assets");
+        bundled.assets.forEach(asset => {
+          assetsFolder.file(asset.name, asset.content || '');
+        });
+      }
+      
+      // Generate and download zip
+      zip.generateAsync({type:"blob"}).then(function(content) {
+        const url = URL.createObjectURL(content);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = skill.name + '.zip';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('下载成功！');
+      });
+    }
+
+    // Install skill to OpenClaw
+    async function installSkill(index) {
+      const skill = mySkills[index];
+      
+      try {
+        const response = await fetch('/api/skills/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            name: skill.name, 
+            content: skill.content, 
+            bundled: skill.bundled 
+          })
+        });
+        
+        if (response.ok) {
+          // Update localStorage
+          skill.installed = true;
+          localStorage.setItem('mySkills', JSON.stringify(mySkills));
+          renderSkills();
+          showToast('✅ 安装成功！');
+        } else {
+          throw new Error('Install failed');
+        }
+      } catch (error) {
+        showToast('❌ 安装失败');
+      }
+    }
+
+    // Publish skill from my-skills list
+    function publishSkill(index) {
+      const skill = mySkills[index];
+      
+      // Check if user is logged in
+      const user = getCurrentUser();
+      if (!user) {
+        showToast('请先登录后再发布');
+        return;
+      }
+      
+      // Determine category
+      let category = 'utility';
+      const contentLower = (skill.content || '').toLowerCase();
+      if (contentLower.includes('code') || contentLower.includes('编程') || contentLower.includes('开发')) {
+        category = 'coding';
+      } else if (contentLower.includes('写') || contentLower.includes('文档') || contentLower.includes('文章')) {
+        category = 'writing';
+      } else if (contentLower.includes('ai') || contentLower.includes('大模型')) {
+        category = 'ai';
+      } else if (contentLower.includes('搜索') || contentLower.includes('查询')) {
+        category = 'search';
+      } else if (contentLower.includes('画') || contentLower.includes('图片') || contentLower.includes('视频')) {
+        category = 'creative';
+      } else if (contentLower.includes('飞书') || contentLower.includes('日历') || contentLower.includes('任务')) {
+        category = 'work';
+      }
+      
+      // Add to skill center
+      const skillCenterSkills = JSON.parse(localStorage.getItem('skillCenterSkills') || '[]');
+      
+      // Check if already published
+      if (skillCenterSkills.find(s => s.name === skill.name && s.userId === user.email)) {
+        showToast('此 Skill 已发布过');
+        return;
+      }
+      
+      skillCenterSkills.unshift({
+        id: Date.now(),
+        name: skill.name,
+        content: skill.content,
+        bundled: skill.bundled || {},
+        description: skill.content ? skill.content.match(/description:\s*\|\s*([\s\S]*?)---/)?.[1]?.trim() || '' : '',
+        createdAt: new Date().toISOString(),
+        published: true,
+        likes: 0,
+        author: user.email,
+        userId: user.email,
+        category: category
+      });
+      
+      localStorage.setItem('skillCenterSkills', JSON.stringify(skillCenterSkills));
+      
+      // Update mySkills
+      skill.published = true;
+      skill.userId = user.email;
+      localStorage.setItem('mySkills', JSON.stringify(mySkills));
+      
+      renderSkills();
+      showToast('✅ 发布成功！');
+    }
+
+    // Delete skill
+    function deleteSkill(index) {
+      if (confirm('确定要删除这个 Skill 吗？')) {
+        mySkills.splice(index, 1);
+        localStorage.setItem('mySkills', JSON.stringify(mySkills));
+        renderSkills();
+        showToast('已删除');
+      }
+    }
+
+    // Clear all skills
+    function clearAllSkills() {
+      if (confirm('确定要清空所有 Skill 吗？此操作不可恢复！')) {
+        mySkills = [];
+        localStorage.setItem('mySkills', JSON.stringify(mySkills));
+        renderSkills();
+        showToast('已清空');
+      }
+    }
+
+    // Show toast message
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMessage').textContent = message;
+      toast.classList.remove('hidden');
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 3000);
+    }
+
+    // Initialize
+    loadSkills();
+  </script>
+</body>
+</html>
