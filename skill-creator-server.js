@@ -284,10 +284,14 @@ const server = http.createServer(async (req, res) => {
           }).on('error', reject);
         });
 
+        // 使用 LLM 进行结构化提取
+        const structuredData = await extractSkillFromContent(content);
+        
         res.writeHead(200);
         res.end(JSON.stringify({ 
           success: true, 
-          content: content,
+          ...structuredData,
+          rawContent: content,
           url: url
         }));
       } catch (error) {
@@ -295,6 +299,86 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ error: error.message }));
       }
       return;
+    }
+
+    // LLM 结构化提取函数
+    async function extractSkillFromContent(content) {
+      const axios = require('axios');
+      
+      const extractPrompt = `
+你是一个专业的 AI 技能 (Skill) 配置专家。你的任务是阅读用户提供的一篇网页文章（包含标题和正文），并提取、总结出一个高质量的 AI Skill 配置信息。
+
+请严格根据文章内容，输出包含以下 4 个字段的 JSON 格式数据：
+
+1. "skill_name": 
+   - 规则：根据文章核心主题生成一个简短的英文标识符。
+   - 限制：**只能使用小写字母，数字和连字符（-）**，例如：feishu-ai-kb-guide。不要使用任何毫无意义的乱码。
+
+2. "description": 
+   - 规则：简要描述该技能的功能。请综合文章标题和核心内容进行总结（1-2句话），说明这个技能可以帮用户做什么。不要照抄原标题。
+
+3. "trigger_condition": 
+   - 规则：何时使用该技能。请根据上一步的名称和描述，智能推断用户的搜索意图或提问场景。
+   - 格式建议："当用户需要/询问/遇到...时使用该技能"。
+
+4. "instructions": 
+   - 规则：运行指令/工作流。请仔细阅读文章正文，**提取其中的动作和操作步骤**（动词驱动）。
+   - 格式：去除冗余的描述性文字，将其转化为清晰的，分步骤的行动指南（使用 1. 2. 3. 列表格式）。如果原文不是流程，则将其总结为 AI 需要执行的任务规则。
+
+【输出格式要求】
+必须输出合法的 JSON，不要包含任何额外的解释文本或 Markdown 代码块包裹。
+
+以下是网页内容：
+---
+${content.substring(0, 8000)}
+---
+`;
+
+      try {
+        // 调用本地 LLM API
+        const response = await axios.post('http://localhost:11434/api/generate', {
+          model: 'llama3',
+          prompt: extractPrompt,
+          format: 'json',
+          stream: false
+        }, { timeout: 120000 });
+        
+        const llmResponse = response.data?.response || response.response?.text;
+        
+        // 解析 JSON
+        let skillData;
+        try {
+          // 尝试提取 JSON 部分
+          const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            skillData = JSON.parse(jsonMatch[0]);
+          } else {
+            throw new Error('No JSON found');
+          }
+        } catch (parseError) {
+          console.log('JSON 解析失败，使用备用方案');
+          skillData = {
+            skill_name: 'imported-skill',
+            description: '根据导入内容生成的技能',
+            trigger_condition: '当用户需要相关功能时使用',
+            instructions: content.substring(0, 2000)
+          };
+        }
+        
+        return skillData;
+      } catch (e) {
+        console.log('LLM 提取失败:', e.message);
+        // 备用：从内容中提取基本信息
+        const titleMatch = content.match(/#\s+(.+)/);
+        const title = titleMatch ? titleMatch[1].trim() : 'imported-skill';
+        
+        return {
+          skill_name: title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').substring(0, 50),
+          description: title.substring(0, 200),
+          trigger_condition: `当用户需要"${title}"相关功能时使用`,
+          instructions: content.substring(0, 2000)
+        };
+      }
     }
 
     // POST /api/skills/install - 安装 skill

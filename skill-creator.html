@@ -656,79 +656,43 @@ Trigger when the user mentions: 写文章, 写笔记, generate content, 写稿, 
         const data = await response.json();
         
         if (data.success) {
-          const content = data.content;
+          // 使用 LLM 结构化提取的数据
+          const skillData = data;
+          const rawContent = data.rawContent || '';
           
-          // Deep analysis based on skill-guide patterns
-          let skillName = '';
-          try {
-            const urlObj = new URL(url);
-            skillName = urlObj.pathname.split('/').pop().replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
-            if (!skillName || skillName.length < 3) {
-              skillName = 'imported-skill';
-            }
-          } catch(e) {
-            skillName = 'imported-skill';
-          }
+          // 填充表单
+          document.getElementById('skillName').value = skillData.skill_name || 'imported-skill';
+          document.getElementById('skillFunctionDesc').value = skillData.description || '';
+          document.getElementById('skillWhenToUse').value = skillData.trigger_condition || '';
           
-          // Extract main title
-          const titleMatch = content.match(/#\s+(.+)/);
-          const title = titleMatch ? titleMatch[1].trim() : skillName.replace(/-/g, ' ');
+          // 处理工作流指令
+          const instructions = skillData.instructions || rawContent;
           
-          // Extract key sections
-          const lines = content.split('\n');
+          // 拆分工作流步骤
+          const container = document.getElementById('instructionsContainer');
+          container.innerHTML = '';
+          instructionStepCount = 0;
           
-          // Find trigger phrases (what users might say)
-          const triggerPatterns = [
-            /当用户(.+?)时/,
-            /用户说["'](.+)["']/,
-            /trigger.*?[:：]\s*(.+)/i,
-            /激活条件/i,
-            /使用场景/
-          ];
+          // 尝试按行拆分
+          const lines = instructions.split('\n').filter(l => l.trim().length > 10);
+          const steps = lines.length > 0 ? lines.slice(0, 6) : [instructions];
           
-          let triggers = [];
-          for (const pattern of triggerPatterns) {
-            const matches = content.match(new RegExp(pattern, 'gi'));
-            if (matches) {
-              triggers = [...triggers, ...matches];
-            }
-          }
+          steps.forEach((step, idx) => {
+            instructionStepCount++;
+            const div = document.createElement('div');
+            div.className = 'instruction-step flex gap-3 items-start fade-in';
+            div.innerHTML = `<div class="step-number w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 text-white flex items-center justify-center text-sm font-medium flex-shrink-0">${instructionStepCount}</div><textarea rows="3" class="instruction-text flex-1 px-4 py-3 border border-gray-200 rounded-xl input-focus outline-none transition-all resize-none" placeholder="输入执行步骤...">${step.trim().substring(0, 300)}</textarea><button type="button" onclick="removeInstructionStep(this)" class="btn-remove w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>`;
+            container.appendChild(div);
+          });
           
-          // If no triggers found, generate based on title
-          const triggerText = triggers.length > 0 
-            ? triggers.join('、').substring(0, 200)
-            : '当用户需要"' + title + '"相关功能时使用';
+          // 自动生成
+          importStatus.classList.remove('hidden');
+          importStatus.className = 'mt-2 text-sm text-green-600';
+          importStatus.innerHTML = '✅ LLM 结构化提取完成！正在生成 Skill...';
           
-          // Find workflow steps
-          const stepPatterns = [
-            /^\d+[\.\)]\s+/m,
-            /^[-*]\s+/m,
-            /^##?\s+\d+[\.\s]/m,
-            /Step\s+\d+/i,
-            /步骤\d+/i,
-            /流程/
-          ];
-          
-          const instructionSteps = [];
-          let currentStep = '';
-          
-          for (const line of lines) {
-            const isStep = stepPatterns.some(p => new RegExp(p).test(line));
-            
-            if (isStep && currentStep.length > 30) {
-              instructionSteps.push(currentStep.trim());
-              currentStep = line;
-            } else if (line.trim().length > 10) {
-              currentStep += '\n' + line;
-            }
-          }
-          if (currentStep.trim()) {
-            instructionSteps.push(currentStep.trim());
-          }
-          
-          // Extract description
-          const paragraphs = content.split(/\n\n+/).filter(p => p.trim().length > 20);
-          const description = paragraphs[0]?.replace(/^#+\s*/g, '').substring(0, 200) || '根据导入内容生成的技能';
+          setTimeout(() => {
+            document.getElementById('skillForm').dispatchEvent(new Event('submit', { bubbles: true }));
+          }, 800);
           
           // Determine category
           let category = 'utility';
