@@ -368,6 +368,18 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    // GET /skill-test.html - Skill Testing page
+    if (req.method === 'GET' && pathname === '/skill-test.html') {
+      const htmlPath = path.join(__dirname, 'skill-test.html');
+      
+      if (fs.existsSync(htmlPath)) {
+        const html = fs.readFileSync(htmlPath, 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(html);
+        return;
+      }
+    }
+
     // 404
     res.writeHead(404);
     res.end(JSON.stringify({ error: 'Not found' }));
