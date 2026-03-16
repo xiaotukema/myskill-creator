@@ -694,52 +694,24 @@ Trigger when the user mentions: 写文章, 写笔记, generate content, 写稿, 
             document.getElementById('skillForm').dispatchEvent(new Event('submit', { bubbles: true }));
           }, 800);
           
-          // Determine category
+          // 自动选择分类
+          const skillText = (skillData.skill_name + ' ' + skillData.description || '').toLowerCase();
           let category = 'utility';
-          const contentLower = content.toLowerCase();
-          if (contentLower.includes('code') || contentLower.includes('编程') || contentLower.includes('开发') || contentLower.includes('函数')) {
+          if (skillText.includes('code') || skillText.includes('编程') || skillText.includes('开发')) {
             category = 'coding';
-          } else if (contentLower.includes('写') || contentLower.includes('文档') || contentLower.includes('文章') || contentLower.includes('内容')) {
+          } else if (skillText.includes('写') || skillText.includes('文档') || skillText.includes('文章')) {
             category = 'writing';
-          } else if (contentLower.includes('ai') || contentLower.includes('大模型') || contentLower.includes('gpt')) {
+          } else if (skillText.includes('ai') || skillText.includes('大模型') || skillText.includes('gpt')) {
             category = 'ai';
-          } else if (contentLower.includes('搜索') || contentLower.includes('查询')) {
+          } else if (skillText.includes('搜索') || skillText.includes('查询')) {
             category = 'search';
-          } else if (contentLower.includes('画') || contentLower.includes('图片') || contentLower.includes('视频')) {
+          } else if (skillText.includes('画') || skillText.includes('图片') || skillText.includes('视频')) {
             category = 'creative';
-          } else if (contentLower.includes('飞书') || contentLower.includes('日历') || contentLower.includes('任务') || contentLower.includes('工作')) {
+          } else if (skillText.includes('飞书') || skillText.includes('日历') || skillText.includes('任务') || skillText.includes('工作')) {
             category = 'work';
           }
           
-          // Fill form
-          document.getElementById('skillName').value = skillName;
-          document.getElementById('skillFunctionDesc').value = description;
-          document.getElementById('skillWhenToUse').value = triggerText;
-          
-          // Clear and fill instructions
-          const container = document.getElementById('instructionsContainer');
-          container.innerHTML = '';
-          instructionStepCount = 0;
-          
-          const finalSteps = instructionSteps.length > 0 
-            ? instructionSteps.slice(0, 6) 
-            : paragraphs.slice(0, 3);
-          
-          if (finalSteps.length === 0) {
-            finalSteps.push('分析用户需求\n' + description);
-            finalSteps.push('执行相应操作');
-            finalSteps.push('返回结果给用户');
-          }
-          
-          finalSteps.forEach((step) => {
-            instructionStepCount++;
-            const div = document.createElement('div');
-            div.className = 'instruction-step flex gap-3 items-start fade-in';
-            div.innerHTML = `<div class="step-number w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 text-white flex items-center justify-center text-sm font-medium flex-shrink-0">${instructionStepCount}</div><textarea rows="3" class="instruction-text flex-1 px-4 py-3 border border-gray-200 rounded-xl input-focus outline-none transition-all resize-none" placeholder="输入执行步骤...">${step.trim().substring(0, 300)}</textarea><button type="button" onclick="removeInstructionStep(this)" class="btn-remove w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>`;
-            container.appendChild(div);
-          });
-          
-          // Auto-select category in tools if applicable
+          // Auto-select tools based on category
           const categoryTools = {
             'coding': ['coding-agent', 'agent-browser', 'github'],
             'writing': ['feishu-create-doc', 'feishu-update-doc'],
@@ -756,6 +728,9 @@ Trigger when the user mentions: 写文章, 写笔记, generate content, 写稿, 
               }
             });
             renderSelectedTools();
+          }
+          
+          // Show success and auto-generate
           }
           
           // Show success and auto-generate
