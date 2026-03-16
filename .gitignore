@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Logs
+logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# OpenClaw
+.openclaw/
+memory/
+.clawhub/
+
+# Temporary files
+*.tmp

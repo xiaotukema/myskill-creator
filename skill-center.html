@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skill 中心 - ClawHub 高热技能库</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .card-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+    .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.12); }
+    .input-focus:focus { box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3); }
+    .tab-active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    .tab-inactive { background: #f3f4f6; color: #6b7280; }
+    .skill-card { transition: all 0.3s ease; }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .category-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <header class="gradient-bg text-white py-6 px-4">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/" class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <h1 class="text-xl font-bold">Skill 中心</h1>
+        </a>
+      </div>
+      <a href="/" class="text-sm opacity-80 hover:opacity-100">← 返回创建器</a>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8">
+    <!-- Search & Sort -->
+    <div class="bg-white rounded-2xl card-shadow p-6 mb-8">
+      <div class="flex flex-col md:flex-row gap-4">
+        <div class="flex-1">
+          <input type="text" id="searchInput" oninput="filterSkills()" 
+            class="w-full px-4 py-3 border border-gray-200 rounded-xl input-focus outline-none transition-all"
+            placeholder="搜索 Skill 名称、描述...">
+        </div>
+        <div class="flex gap-2">
+          <select id="sortSelect" onchange="filterSkills()"
+            class="px-4 py-3 border border-gray-200 rounded-xl input-focus outline-none bg-white">
+            <option value="hot">🔥 最热（安装量）</option>
+            <option value="newest">✨ 最新</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Tabs -->
+    <div class="flex flex-wrap gap-2 mb-6" id="categoryTabs">
+      <button onclick="selectCategory('all')" class="tab-active px-4 py-2 rounded-full text-sm font-medium" data-category="all">全部</button>
+      <button onclick="selectCategory('work')" class="tab-inactive px-4 py-2 rounded-full text-sm font-medium" data-category="work">💼 工作</button>
+      <button onclick="selectCategory('coding')" class="tab-inactive px-4 py-2 rounded-full text-sm font-medium" data-category="coding">💻 编程</button>
+      <button onclick="selectCategory('ai')" class="tab-inactive px-4 py-2 rounded-full text-sm font-medium" data-category="ai">🤖 AI</button>
+      <button onclick="selectCategory('search')" class="tab-inactive px-4 py-2 rounded-full text-sm font-medium" data-category="search">🔎 搜索</button>
+      <button onclick="selectCategory('creative')" class="tab-inactive px-4 py-2 rounded-full text-sm font-medium" data-category="creative">🎨 创意</button>
+      <button onclick="selectCategory('utility')" class="tab-inactive px-4 py-2 rounded-full text-sm font-medium" data-category="utility">🔧 工具</button>
+      <button onclick="selectCategory('my-published')" class="tab-inactive px-4 py-2 rounded-full text-sm font-medium" data-category="my-published">⭐ 我发布的</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="text-sm text-gray-500 mb-4" id="stats"></div>
+
+    <!-- Skills Grid -->
+    <div id="skillsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Skills will be rendered here -->
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="text-center py-12">
+      <div class="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto"></div>
+      <p class="text-gray-500 mt-4">加载中...</p>
+    </div>
+
+    <!-- No Results -->
+    <div id="noResults" class="hidden text-center py-12">
+      <p class="text-gray-500 text-lg">没有找到匹配的 Skill</p>
+    </div>
+  </main>
+
+  <footer class="text-center py-8 text-gray-400 text-sm">
+    <p>数据来源：ClawHub • 仅展示安装量 > 50 的热门 Skill</p>
+  </footer>
+
+  <script>
+    // Skill data with >50 installs (manually scraped from ClawHub)
+    const skillsData = [
+      { name: 'github', description: 'GitHub operations via gh CLI', installs: 113292, downloads: 7, stars: 2854, category: 'coding', url: 'https://clawhub.com/skill/github' },
+      { name: 'agent-browser', description: 'Browser automation with headless Chrome', installs: 135881, downloads: 2, stars: 2543, category: 'coding', url: 'https://clawhub.com/skill/agent-browser' },
+      { name: 'weather', description: 'Get current weather and forecasts', installs: 96972, downloads: 6, stars: 2462, category: 'utility', url: 'https://clawhub.com/skill/weather' },
+      { name: 'skill-creator', description: 'Create or update AgentSkills', installs: 42792, downloads: 3, stars: 1438, category: 'ai', url: 'https://clawhub.com/skill/skill-creator' },
+      { name: 'nano-banana-pro', description: 'Image generation via Gemini 3 Pro', installs: 52159, downloads: 1, stars: 1299, category: 'creative', url: 'https://clawhub.com/skill/nano-banana-pro' },
+      { name: 'tavily', description: 'AI-optimized web search', installs: 21528, downloads: 0, stars: 320, category: 'search', url: 'https://clawhub.com/skill/tavily' },
+      { name: 'self-improving', description: 'Self-reflection and learning agent', installs: 75792, downloads: 0, stars: 937, category: 'ai', url: 'https://clawhub.com/skill/self-improving' },
+      { name: 'healthcheck', description: 'Host security hardening', installs: 13572, downloads: 0, stars: 757, category: 'utility', url: 'https://clawhub.com/skill/healthcheck' },
+      { name: 'gemini', description: 'Gemini CLI for Q&A and generation', installs: 22183, downloads: 5, stars: 1035, category: 'ai', url: 'https://clawhub.com/skill/gemini' },
+      { name: 'xurl', description: 'X (Twitter) API operations', installs: 4215, downloads: 0, stars: 391, category: 'work', url: 'https://clawhub.com/skill/xurl' },
+      { name: 'feishu-calendar', description: 'Feishu calendar and schedule management', installs: 3790, downloads: 2, stars: 85, category: 'work', url: 'https://clawhub.com/skill/feishu-calendar' },
+      { name: 'feishu-bitable', description: 'Feishu multi-dimensional table management', installs: 2959, downloads: 0, stars: 49, category: 'work', url: 'https://clawhub.com/skill/feishu-bitable' },
+      { name: 'claude-code', description: 'Claude Code coding agent', installs: 4114, downloads: 0, stars: 58, category: 'coding', url: 'https://clawhub.com/skill/claude-code' },
+      { name: 'feishu-task', description: 'Feishu task management', installs: 377, downloads: 0, stars: 13, category: 'work', url: 'https://clawhub.com/skill/feishu-task' },
+      { name: 'x', description: 'X (Twitter) operations', installs: 1727, downloads: 0, stars: 6, category: 'work', url: 'https://clawhub.com/skill/x' },
+      { name: 'codex', description: 'Codex coding agent', installs: 87, downloads: 0, stars: 0, category: 'coding', url: 'https://clawhub.com/skill/codex' },
+      { name: 'weather-api', description: 'Weather API integration', installs: 1234, downloads: 0, stars: 5, category: 'utility', url: 'https://clawhub.com/skill/weather-api' },
+    ];
+
+    let currentCategory = 'all';
+    let searchQuery = '';
+    let sortBy = 'hot';
+    let userPublishedSkills = [];
+    let likedSkills = [];
+
+    // Load user-published skills and likes from localStorage
+    let currentUser = null;
+    
+    function getCurrentUser() {
+      try {
+        const user = localStorage.getItem('currentUser');
+        return user ? JSON.parse(user) : null;
+      } catch(e) {
+        return null;
+      }
+    }
+    
+    // Load user-published skills and likes from localStorage
+    function loadUserData() {
+      currentUser = getCurrentUser();
+      const userId = currentUser ? currentUser.email : null;
+      
+      try {
+        userPublishedSkills = JSON.parse(localStorage.getItem('skillCenterSkills') || '[]');
+        likedSkills = JSON.parse(localStorage.getItem('likedSkills') || '[]');
+      } catch(e) {
+        userPublishedSkills = [];
+        likedSkills = [];
+      }
+      
+      // Merge published skills with likes >=1 into main list
+      userPublishedSkills.filter(s => s.likes >= 1).forEach(skill => {
+        if (!skillsData.find(s => s.name === skill.name)) {
+          skillsData.push({
+            name: skill.name,
+            description: skill.description,
+            installs: skill.likes * 100,
+            stars: skill.likes,
+            category: skill.category || 'community',
+            url: '#',
+            isUserPublished: true,
+            likes: skill.likes,
+            author: skill.author
+          });
+        }
+      });
+    }
+
+    // Like a skill (toggle - like if not liked, unlike if already liked)
+    function likeSkill(skillName) {
+      try {
+        var skillCenterSkills = JSON.parse(localStorage.getItem('skillCenterSkills') || '[]');
+      } catch(e) {
+        var skillCenterSkills = [];
+      }
+      
+      // Check if already liked
+      const isLiked = likedSkills.includes(skillName);
+      
+      // Find skill in user-published
+      let skill = skillCenterSkills.find(s => s.name === skillName);
+      
+      if (isLiked) {
+        // Unlike - remove from liked list and decrease like count
+        likedSkills = likedSkills.filter(s => s !== skillName);
+        if (skill) {
+          skill.likes = Math.max(0, (skill.likes || 1) - 1);
+        }
+      } else {
+        // Like - add to liked list and increase like count
+        likedSkills.push(skillName);
+        if (skill) {
+          skill.likes = (skill.likes || 0) + 1;
+        } else {
+          // Create new entry if not exists
+          skillCenterSkills.push({
+            name: skillName,
+            likes: 1,
+            description: 'User published skill',
+            content: '',
+            bundled: {},
+            createdAt: new Date().toISOString(),
+            category: 'utility'
+          });
+        }
+      }
+      
+      try {
+        localStorage.setItem('skillCenterSkills', JSON.stringify(skillCenterSkills));
+        localStorage.setItem('likedSkills', JSON.stringify(likedSkills));
+      } catch(e) {}
+      
+      // Update UI
+      loadUserData();
+      filterSkills();
+      filterSkills();
+    }
+
+    // Check if skill is liked
+    function isLiked(skillName) {
+      return likedSkills.includes(skillName);
+    }
+
+    // Format number
+    function formatNumber(num) {
+      if (num >= 1000) {
+        return (num / 1000).toFixed(1) + 'k';
+      }
+      return num.toString();
+    }
+
+    // Select category
+    function selectCategory(category) {
+      currentCategory = category;
+      
+      // Update tab styles
+      document.querySelectorAll('#categoryTabs button').forEach(btn => {
+        if (btn.dataset.category === category) {
+          btn.className = 'tab-active px-4 py-2 rounded-full text-sm font-medium';
+        } else {
+          btn.className = 'tab-inactive px-4 py-2 rounded-full text-sm font-medium';
+        }
+      });
+      
+      filterSkills();
+    }
+
+    // Filter and render skills
+    function filterSkills() {
+      searchQuery = document.getElementById('searchInput').value.toLowerCase();
+      sortBy = document.getElementById('sortSelect').value;
+      
+      let allSkills = [...skillsData];
+      
+      // Handle "my-published" category - show only current user's published skills
+      if (currentCategory === 'my-published') {
+        const userId = currentUser ? currentUser.email : null;
+        if (userId) {
+          allSkills = userPublishedSkills.filter(s => s.userId === userId);
+        } else {
+          allSkills = [];
+        }
+      }
+      
+      let filtered = allSkills.filter(skill => {
+        // Category filter (skip for my-published)
+        if (currentCategory !== 'all' && currentCategory !== 'my-published' && skill.category !== currentCategory) {
+          return false;
+        }
+        
+        // Search filter
+        if (searchQuery) {
+          return skill.name.toLowerCase().includes(searchQuery) || 
+                 (skill.description && skill.description.toLowerCase().includes(searchQuery));
+        }
+        
+        return true;
+      });
+      
+      // Sort
+      if (sortBy === 'hot') {
+        filtered.sort((a, b) => (b.likes || b.stars || b.installs || 0) - (a.likes || a.stars || a.installs || 0));
+      } else if (sortBy === 'newest') {
+        filtered.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      }
+      
+      renderSkills(filtered, currentCategory === 'my-published');
+    }
+
+    // Render skills grid
+    function renderSkills(skills, isMyPublished = false) {
+      const grid = document.getElementById('skillsGrid');
+      const loading = document.getElementById('loading');
+      const noResults = document.getElementById('noResults');
+      const stats = document.getElementById('stats');
+      
+      loading.classList.add('hidden');
+      
+      if (skills.length === 0) {
+        grid.classList.add('hidden');
+        noResults.classList.remove('hidden');
+        stats.textContent = '';
+        return;
+      }
+      
+      grid.classList.remove('hidden');
+      noResults.classList.add('hidden');
+      stats.textContent = isMyPublished ? `你发布的 ${skills.length} 个 Skills` : `共 ${skills.length} 个热门 Skill`;
+      
+      grid.innerHTML = skills.map(skill => `
+        <div class="skill-card bg-white rounded-2xl card-shadow card-hover p-6 fade-in">
+          <div class="flex items-start justify-between mb-3">
+            <h3 class="font-semibold text-lg text-gray-800">${skill.name}</h3>
+            <div class="flex items-center gap-2">
+              ${skill.isUserPublished || isMyPublished ? '<span class="text-xs bg-pink-100 text-pink-600 px-2 py-1 rounded-full">社区</span>' : ''}
+              <span class="category-icon bg-${getCategoryColor(skill.category)}-100">
+                ${getCategoryIcon(skill.category)}
+              </span>
+            </div>
+          </div>
+          <p class="text-gray-500 text-sm mb-4 line-clamp-2">${skill.description || ''}</p>
+          
+          <div class="flex items-center gap-4 text-sm text-gray-400 mb-4">
+            <span class="flex items-center gap-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              ${formatNumber(skill.installs || 0)}
+            </span>
+            <button onclick="likeSkill('${skill.name}')" class="flex items-center gap-1 ${isLiked(skill.name) ? 'text-pink-500' : 'hover:text-pink-500'} transition-colors">
+              <svg class="w-4 h-4 ${isLiked(skill.name) ? 'fill-current' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+              ${skill.likes || skill.stars || 0}
+            </button>
+          </div>
+          
+          <div class="flex gap-2">
+            ${skill.url !== '#' ? `<a href="${skill.url}" target="_blank" class="flex-1 text-center py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium transition-colors">
+              查看详情
+            </a>` : ''}
+            <button onclick="useThisSkill('${skill.name}')" class="flex-1 text-center py-2 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-lg text-sm font-medium text-white transition-colors">
+              使用此 Skill
+            </button>
+          </div>
+          <button onclick="useThisSkillNewTab('${skill.name}')" class="w-full mt-2 text-center py-2 text-sm text-gray-400 hover:text-purple-600 transition-colors">
+            在新标签页中使用 →
+          </button>
+        </div>
+      `).join('');
+    }
+
+    // Get category color
+    function getCategoryColor(category) {
+      const colors = {
+        work: 'blue',
+        coding: 'green',
+        ai: 'purple',
+        search: 'yellow',
+        creative: 'pink',
+        utility: 'gray',
+        community: 'pink'
+      };
+      return colors[category] || 'gray';
+    }
+
+    // Get category icon
+    function getCategoryIcon(category) {
+      const icons = {
+        work: '💼',
+        coding: '💻',
+        ai: '🤖',
+        search: '🔎',
+        creative: '🎨',
+        utility: '🔧',
+        community: '⭐'
+      };
+      return icons[category] || '📦';
+    }
+
+    // Use this skill - navigate to creator with skill pre-filled
+    function useThisSkill(skillName) {
+      // Navigate to main page (root) with skill name as query param
+      window.location.href = '/?skill=' + encodeURIComponent(skillName);
+    }
+
+    // Also allow opening in new tab
+    function useThisSkillNewTab(skillName) {
+      window.open('/?skill=' + encodeURIComponent(skillName), '_blank');
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadUserData();
+      filterSkills();
+    });
+  </script>
+</body>
+</html>

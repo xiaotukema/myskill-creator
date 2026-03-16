@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skill 设计指南 - OpenClaw</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .card-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+    .toc-link.active { color: #667eea; border-left-color: #667eea; }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    pre { white-space: pre-wrap; word-wrap: break-word; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <header class="gradient-bg text-white py-6 px-4">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/" class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <h1 class="text-xl font-bold">Skill 设计指南</h1>
+        </a>
+      </div>
+      <a href="/" class="text-sm opacity-80 hover:opacity-100">← 返回创建器</a>
+    </div>
+  </header>
+
+  <div class="max-w-6xl mx-auto px-4 py-8">
+    <div class="flex gap-8">
+      <!-- Table of Contents -->
+      <aside class="w-64 flex-shrink-0 hidden lg:block">
+        <div class="sticky top-8 bg-white rounded-2xl card-shadow p-6">
+          <h3 class="font-semibold text-gray-800 mb-4">📑 目录</h3>
+          <nav class="space-y-2 text-sm">
+            <a href="#intro" class="toc-link block py-1 pl-3 border-l-2 border-gray-200 text-gray-600 hover:text-purple-600">简介</a>
+            <a href="#basics" class="toc-link block py-1 pl-3 border-l-2 border-gray-200 text-gray-600 hover:text-purple-600">第一章：基础</a>
+            <a href="#design" class="toc-link block py-1 pl-3 border-l-2 border-gray-200 text-gray-600 hover:text-purple-600">第二章：规划与设计</a>
+            <a href="#test" class="toc-link block py-1 pl-3 border-l-2 border-gray-200 text-gray-600 hover:text-purple-600">第三章：测试与迭代</a>
+            <a href="#publish" class="toc-link block py-1 pl-3 border-l-2 border-gray-200 text-gray-600 hover:text-purple-600">第四章：分发与共享</a>
+            <a href="#patterns" class="toc-link block py-1 pl-3 border-l-2 border-gray-200 text-gray-600 hover:text-purple-600">第五章：模式与故障排除</a>
+            <a href="#quick-check" class="toc-link block py-1 pl-3 border-l-2 border-gray-200 text-gray-600 hover:text-purple-600">附录：快速检查清单</a>
+          </nav>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="flex-1 bg-white rounded-2xl card-shadow p-8">
+        <div class="prose max-w-none">
+          <h1 id="intro" class="text-3xl font-bold text-gray-800 mb-6">Skill 构建完全指南</h1>
+          <p class="text-gray-600 mb-6">技能（Skill）是一组指令的集合——以简单的文件夹形式封装——它教会 OpenClaw 如何处理特定的任务或工作流。</p>
+
+          <h2 id="basics" class="text-2xl font-bold text-gray-800 mt-8 mb-4">第一章：基础</h2>
+          
+          <div class="bg-gray-50 rounded-xl p-4 mb-6">
+            <h3 class="font-semibold text-gray-800 mb-3">📁 技能文件结构</h3>
+            <pre class="text-sm bg-gray-800 text-gray-100 p-4 rounded-lg overflow-x-auto">your-skill-name/
+├── SKILL.md              # 必需 - 主要技能文件
+├── scripts/              # 可选 - 可执行代码
+│   ├── process_data.py
+│   └── validate.sh
+├── references/           # 可选 - 文档
+│   ├── api-guide.md
+│   └── examples/
+└── assets/              # 可选 - 模板等
+    └── report-template.md</pre>
+          </div>
+
+          <h3 class="font-semibold text-gray-800 mt-6 mb-3">🎯 核心设计原则</h3>
+          <ul class="list-disc list-inside space-y-2 text-gray-600 mb-6">
+            <li><strong>渐进式披露</strong> - 三层系统：YAML frontmatter → SKILL.md 正文 → 附加文件</li>
+            <li><strong>可组合性</strong> - 技能应与其他技能良好配合</li>
+            <li><strong>可移植性</strong> - 一次创建，可在所有平台使用</li>
+          </ul>
+
+          <h3 class="font-semibold text-gray-800 mt-6 mb-3">📝 YAML Frontmatter（最重要）</h3>
+          <pre class="text-sm bg-gray-800 text-gray-100 p-4 rounded-lg mb-4">---
+name: your-skill-name
+description: 它做什么。当用户要求[特定短语]时使用。
+---
+
+# 技能名称
+
+## 内容
+详细说明...</pre>
+
+          <h2 id="design" class="text-2xl font-bold text-gray-800 mt-8 mb-4">第二章：规划与设计</h2>
+          
+          <h3 class="font-semibold text-gray-800 mt-6 mb-3">💡 从用例开始</h3>
+          <div class="bg-blue-50 rounded-xl p-4 mb-4">
+            <p class="text-blue-800"><strong>示例：项目冲刺规划</strong></p>
+            <ul class="list-disc list-inside text-blue-700 mt-2">
+              <li>触发：用户说"帮我规划这个冲刺"</li>
+              <li>步骤：获取项目状态 → 分析团队容量 → 建议优先级 → 创建任务</li>
+              <li>结果：完整规划好的冲刺</li>
+            </ul>
+          </div>
+
+          <h3 class="font-semibold text-gray-800 mt-6 mb-3">⚠️ 关键规则</h3>
+          <ul class="list-disc list-inside space-y-2 text-gray-600 mb-6">
+            <li>SKILL.md 必须精确命名（区分大小写）</li>
+            <li>文件夹使用 kebab-case（不要空格、下划线、大写）</li>
+            <li>description 必须包含：技能功能 + 触发条件</li>
+            <li>描述不超过 1024 字符</li>
+          </ul>
+
+          <h2 id="test" class="text-2xl font-bold text-gray-800 mt-8 mb-4">第三章：测试与迭代</h2>
+          
+          <h3 class="font-semibold text-gray-800 mt-4 mb-3">✅ 推荐测试方法</h3>
+          <div class="grid md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-green-50 rounded-xl p-4">
+              <h4 class="font-semibold text-green-800 mb-2">1. 触发测试</h4>
+              <ul class="text-sm text-green-700 list-disc list-inside">
+                <li>✅ 在明显任务上触发</li>
+                <li>✅ 在改写请求上触发</li>
+                <li>❌ 不在不相关主题上触发</li>
+              </ul>
+            </div>
+            <div class="bg-blue-50 rounded-xl p-4">
+              <h4 class="font-semibold text-blue-800 mb-2">2. 功能测试</h4>
+              <ul class="text-sm text-blue-700 list-disc list-inside">
+                <li>生成有效输出</li>
+                <li>API 调用成功</li>
+                <li>错误处理有效</li>
+              </ul>
+            </div>
+            <div class="bg-purple-50 rounded-xl p-4">
+              <h4 class="font-semibold text-purple-800 mb-2">3. 性能比较</h4>
+              <ul class="text-sm text-purple-700 list-disc list-inside">
+                <li>无技能 vs 有技能</li>
+                <li>对比 token 消耗</li>
+                <li>对比成功率</li>
+              </ul>
+            </div>
+          </div>
+
+          <h2 id="publish" class="text-2xl font-bold text-gray-800 mt-8 mb-4">第四章：分发与共享</h2>
+          
+          <h3 class="font-semibold text-gray-800 mt-4 mb-3">🚀 推荐方法</h3>
+          <ul class="list-disc list-inside space-y-2 text-gray-600 mb-6">
+            <li><strong>托管在 GitHub</strong> - 开源技能的公共仓库</li>
+            <li><strong>在 MCP 仓库中文档化</strong> - 从 MCP 文档链接到技能</li>
+            <li><strong>创建安装指南</strong> - 清晰的上手说明</li>
+          </ul>
+
+          <h2 id="patterns" class="text-2xl font-bold text-gray-800 mt-8 mb-4">第五章：模式与故障排除</h2>
+          
+          <h3 class="font-semibold text-gray-800 mt-4 mb-3">🔧 常见模式</h3>
+          <div class="space-y-4 mb-6">
+            <div class="border-l-4 border-purple-500 pl-4">
+              <p class="font-semibold">模式 1：顺序工作流编排</p>
+              <p class="text-sm text-gray-600">当用户需要特定顺序的多步骤流程时使用</p>
+            </div>
+            <div class="border-l-4 border-blue-500 pl-4">
+              <p class="font-semibold">模式 2：多 MCP 协调</p>
+              <p class="text-sm text-gray-600">当工作流跨越多个服务时使用</p>
+            </div>
+            <div class="border-l-4 border-green-500 pl-4">
+              <p class="font-semibold">模式 3：迭代改进</p>
+              <p class="text-sm text-gray-600">当输出质量随迭代提高时使用</p>
+            </div>
+            <div class="border-l-4 border-yellow-500 pl-4">
+              <p class="font-semibold">模式 4：领域特定智能</p>
+              <p class="text-sm text-gray-600">当技能添加超越工具访问的专业知识时使用</p>
+            </div>
+          </div>
+
+          <h3 class="font-semibold text-gray-800 mt-6 mb-3">❌ 故障排除</h3>
+          <div class="bg-red-50 rounded-xl p-4 mb-6">
+            <p class="font-semibold text-red-800 mb-2">技能不上传</p>
+            <ul class="text-sm text-red-700 list-disc list-inside">
+              <li>错误 "Could not find SKILL.md" → 重命名为 SKILL.md</li>
+              <li>错误 "Invalid frontmatter" → 检查 YAML 格式</li>
+              <li>错误 "Invalid skill name" → 使用 kebab-case</li>
+            </ul>
+          </div>
+
+          <h2 id="quick-check" class="text-2xl font-bold text-gray-800 mt-8 mb-4">附录：快速检查清单</h2>
+          
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="bg-green-50 rounded-xl p-4">
+              <h4 class="font-semibold text-green-800 mb-3">📤 上传前</h4>
+              <ul class="text-sm text-green-700 space-y-1">
+                <li>✅ 在明显任务上测试触发</li>
+                <li>✅ 在改写请求上测试触发</li>
+                <li>✅ 验证不在不相关主题上触发</li>
+                <li>✅ 功能测试通过</li>
+                <li>✅ 压缩为 .zip 文件</li>
+              </ul>
+            </div>
+            <div class="bg-blue-50 rounded-xl p-4">
+              <h4 class="font-semibold text-blue-800 mb-3">📥 上传后</h4>
+              <ul class="text-sm text-blue-700 space-y-1">
+                <li>✅ 在真实对话中测试</li>
+                <li>✅ 监控触发不足/过度触发</li>
+                <li>✅ 收集用户反馈</li>
+                <li>✅ 迭代描述和指令</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="mt-8 pt-6 border-t border-gray-200 text-center text-gray-500 text-sm">
+            <p>原文来源：Anthropic - The Complete Guide to Building Skills for Claude</p>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <footer class="text-center py-8 text-gray-400 text-sm">
+    <p>Powered by OpenClaw</p>
+  </footer>
+
+  <script>
+    // Smooth scroll for TOC links
+    document.querySelectorAll('.toc-link').forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const targetId = this.getAttribute('href').substring(1);
+        const target = document.getElementById(targetId);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth' });
+        }
+      });
+    });
+  </script>
+</body>
+</html>
