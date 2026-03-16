@@ -26,22 +26,41 @@ if (!fs.existsSync(SKILLS_DIR)) {
   fs.mkdirSync(SKILLS_DIR, { recursive: true });
 }
 
-// 简单的 AI 生成函数（使用系统默认模型）
+// AI 生成函数 - 使用增强的 Prompt 模板
 async function generateSkillContent(prompt) {
   try {
-    // 尝试调用 OpenClaw 的 AI
-    // 这里可以根据实际情况调用不同的 AI API
     const axios = require('axios');
-    
+
+    // 注入基于规范的强化 Prompt 模板
+    const augmentedPrompt = `
+作为资深的 OpenClaw 智能体技能工程师，请将用户提供的资料转化为标准的 SKILL.md 格式文件。
+请严格遵守以下工程规范：
+
+1. YAML Frontmatter 规范:
+   - name: 请识别核心动词（如 deploy-xxx, format-xxx），采用 kebab-case 命名。
+   - description: 内容需控制在 1024 字符内，严禁使用任何 XML 标签（如 < 或 >）。必须采用"推行式"语气（例如："务必在用户要求/提及...时使用此技能，即使对方没有明确说明..."）。
+
+2. Markdown 指令集架构规范:
+   请按以下层级生成结构化逻辑：
+   - 角色定义: 赋予执行此技能的 Agent 明确的专家身份。
+   - 前置检查: 要求模型执行任务前检索相关的本地环境、配置或项目清单。
+   - 分阶段流水线: 将核心任务分解为 3-5 个逻辑清晰的阶段，并在每个阶段后提供明确的"验证方式/条件"。
+   - 错误回滚指令: 根据任务逻辑，生成遇到故障或执行失败时的备选方案和回滚手段。
+
+以下是用户需要转化为 Skill 的原始提取资料：
+-------------------
+${prompt}
+    `;
+
     const response = await axios.post('http://localhost:11434/api/generate', {
       model: 'llama3',
-      prompt: prompt,
+      prompt: augmentedPrompt,
       stream: false
-    }, { timeout: 60000 });
-    
+    }, { timeout: 120000 });
+
     return response.response?.text || response.data?.response;
   } catch (e) {
-    console.log('AI API 不可用，使用模板生成');
+    console.log('AI API 不可用，使用模板生成:', e.message);
     return null;
   }
 }
@@ -230,7 +249,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // POST /api/import-url - 从 URL 导入并生成 Skill
+    // POST /api/import-url - 从 URL 导入并生成 Skill（使用 Jina Reader 获取高质量 Markdown）
     if (req.method === 'POST' && pathname === '/api/import-url') {
       const body = await new Promise((resolve, reject) => {
         let data = '';
@@ -248,20 +267,23 @@ const server = http.createServer(async (req, res) => {
       }
 
       try {
-        // Fetch content from URL
+        // 优化：使用 Jina Reader 将 URL 转换为高质量 Markdown
+        // 避免原生 HTML 的 Token 爆炸和无用信息噪音
         const https = require('https');
-        const httpModule = url.startsWith('https') ? https : require('http');
+        const jinaUrl = `https://r.jina.ai/${encodeURIComponent(url)}`;
         
         const content = await new Promise((resolve, reject) => {
-          httpModule.get(url, (res) => {
+          https.get(jinaUrl, {
+            headers: {
+              'Accept': 'text/plain'
+            }
+          }, (res) => {
             let data = '';
             res.on('data', chunk => data += chunk);
             res.on('end', () => resolve(data));
           }).on('error', reject);
         });
 
-        // Try to extract text content (basic markdown/text extraction)
-        // For now, just use the raw content
         res.writeHead(200);
         res.end(JSON.stringify({ 
           success: true, 
