@@ -20,6 +20,8 @@ const { execSync } = require('child_process');
 
 const PORT = process.env.PORT || 3456;
 const SKILLS_DIR = path.join(process.env.HOME || process.env.USERPROFILE, '.openclaw/workspace/skills');
+const FETCH_TIMEOUT_MS = 20000;
+let scraplingReady = false;
 
 // AI 配置 - 支持 MiniMax / Gemini / Ollama
 const AI_PROVIDER = process.env.AI_PROVIDER || 'minimax';  // 'minimax', 'gemini', 'ollama'
@@ -31,6 +33,281 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 // 确保 skills 目录存在
 if (!fs.existsSync(SKILLS_DIR)) {
   fs.mkdirSync(SKILLS_DIR, { recursive: true });
+}
+
+function sanitizeSkillName(input, fallback = 'imported-skill') {
+  const normalized = String(input || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5\s-]/g, ' ')
+    .trim();
+
+  if (!normalized) return fallback;
+
+  const asciiSlug = normalized
+    .replace(/[\u4e00-\u9fa5]/g, ' ')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .substring(0, 60);
+
+  return asciiSlug || fallback;
+}
+
+function decodeHtmlEntities(text) {
+  return String(text || '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function htmlToMarkdown(html) {
+  if (!html) return '';
+  let md = String(html);
+
+  // 移除噪音
+  md = md.replace(/<script[\s\S]*?<\/script>/gi, '');
+  md = md.replace(/<style[\s\S]*?<\/style>/gi, '');
+  md = md.replace(/<noscript[\s\S]*?<\/noscript>/gi, '');
+
+  // 常见标签转换
+  md = md.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '\n# $1\n');
+  md = md.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '\n## $1\n');
+  md = md.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '\n### $1\n');
+  md = md.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '\n- $1');
+  md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '\n$1\n');
+  md = md.replace(/<br\s*\/?>/gi, '\n');
+
+  // 清理剩余标签
+  md = md.replace(/<[^>]+>/g, ' ');
+  md = decodeHtmlEntities(md);
+  md = md.replace(/[ \t]+\n/g, '\n');
+  md = md.replace(/\n{3,}/g, '\n\n');
+
+  return md.trim();
+}
+
+function extractTitleFromText(content, fallback = 'Imported Skill') {
+  const firstHeading = String(content || '').match(/^#\s+(.+)$/m);
+  if (firstHeading?.[1]) return firstHeading[1].trim().substring(0, 120);
+  return fallback;
+}
+
+function pickActionSteps(content) {
+  const lines = String(content || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  const candidates = lines.filter(line =>
+    /^(\d+\.|-|\*)\s+/.test(line) ||
+    /(点击|打开|创建|配置|安装|运行|部署|验证|提交|处理|提取|分析|生成|调用|检查|优化|click|open|create|configure|install|run|deploy|verify|submit|extract|analyze|generate)/i.test(line)
+  );
+
+  const selected = (candidates.length > 0 ? candidates : lines)
+    .slice(0, 6)
+    .map((line, idx) => {
+      const cleaned = line
+        .replace(/^(\d+\.|-|\*)\s+/, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return `${idx + 1}. ${cleaned}`;
+    });
+
+  if (selected.length === 0) {
+    return [
+      '1. 读取并理解网页标题与正文，识别核心目标。',
+      '2. 提取可执行动作并整理为简洁步骤。',
+      '3. 基于内容生成可复用的技能说明与触发条件。'
+    ];
+  }
+  return selected;
+}
+
+function buildHeuristicSkillData(content, sourceUrl, pageTitle = '') {
+  const title = pageTitle || extractTitleFromText(content, 'Imported Skill');
+  const meaningfulLines = String(content || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 20 && !line.startsWith('#'))
+    .slice(0, 3);
+
+  const shortSummary = meaningfulLines.join(' ').substring(0, 220) || `从 ${sourceUrl} 导入的内容理解与执行技能。`;
+  const skillName = sanitizeSkillName(title || sourceUrl);
+  const steps = pickActionSteps(content).join('\n');
+
+  return {
+    skill_name: skillName,
+    description: `该技能用于处理“${title}”相关任务，能够基于页面核心内容进行总结并执行关键步骤。${shortSummary}`.substring(0, 300),
+    trigger_condition: `当用户需要处理“${title}”主题相关问题，或希望把该页面内容转化为可执行流程时使用此技能。`,
+    instructions: steps
+  };
+}
+
+function fetchTextByUrl(targetUrl, options = {}, redirectCount = 0) {
+  const { URL } = require('url');
+  const target = new URL(targetUrl);
+  const client = target.protocol === 'http:' ? require('http') : require('https');
+
+  return new Promise((resolve, reject) => {
+    const req = client.get(targetUrl, options, (res) => {
+      const statusCode = res.statusCode || 0;
+
+      if (statusCode >= 300 && statusCode < 400 && res.headers.location) {
+        if (redirectCount >= 5) {
+          reject(new Error('Too many redirects'));
+          return;
+        }
+        const redirected = new URL(res.headers.location, targetUrl).toString();
+        resolve(fetchTextByUrl(redirected, options, redirectCount + 1));
+        return;
+      }
+
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve(data));
+    });
+
+    req.setTimeout(FETCH_TIMEOUT_MS, () => {
+      req.destroy(new Error(`请求超时(${FETCH_TIMEOUT_MS}ms)`));
+    });
+    req.on('error', reject);
+  });
+}
+
+async function fetchWithJinaReader(targetUrl) {
+  const jinaUrl = `https://r.jina.ai/${encodeURIComponent(targetUrl)}`;
+  const content = await fetchTextByUrl(jinaUrl, { headers: { Accept: 'text/plain' } });
+  return {
+    strategy: 'jina-reader',
+    content: content.trim(),
+    title: extractTitleFromText(content, new URL(targetUrl).hostname)
+  };
+}
+
+async function fetchWithScrapling(targetUrl) {
+  await ensureScraplingReady();
+  const escaped = targetUrl.replace(/"/g, '\\"');
+  const cmd = `python3 - <<'PY'
+import json
+import sys
+from scrapling.fetchers import Fetcher
+
+url = "${escaped}"
+fetcher = Fetcher()
+resp = fetcher.get(url, stealthy_headers=True)
+text = getattr(resp, "markdown", None) or getattr(resp, "text", "") or ""
+title = getattr(resp, "title", None) or ""
+print(json.dumps({"title": title, "content": text}))
+PY`;
+
+  const output = execSync(cmd, {
+    encoding: 'utf8',
+    timeout: FETCH_TIMEOUT_MS
+  });
+  const parsed = JSON.parse(output);
+  return {
+    strategy: 'scrapling',
+    content: String(parsed.content || '').trim(),
+    title: String(parsed.title || '').trim()
+  };
+}
+
+async function ensureScraplingReady() {
+  if (scraplingReady) return;
+
+  try {
+    execSync(`python3 - <<'PY'
+import scrapling
+print("ok")
+PY`, { stdio: 'ignore', timeout: 5000 });
+    scraplingReady = true;
+    return;
+  } catch (_) {
+    console.log('未检测到 scrapling，尝试自动安装...');
+  }
+
+  // 自动安装 scrapling（优先用户态安装）
+  try {
+    execSync('python3 -m pip install --user scrapling', {
+      stdio: 'pipe',
+      timeout: 120000
+    });
+  } catch (installError) {
+    // 某些环境禁用 --user，再尝试系统安装
+    execSync('python3 -m pip install scrapling', {
+      stdio: 'pipe',
+      timeout: 120000
+    });
+  }
+
+  execSync(`python3 - <<'PY'
+import scrapling
+print("ok")
+PY`, { stdio: 'ignore', timeout: 5000 });
+
+  scraplingReady = true;
+  console.log('scrapling 安装完成并可用。');
+}
+
+async function fetchWithDirectHtml(targetUrl) {
+  const rawHtml = await fetchTextByUrl(targetUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 SkillCreatorBot/1.0'
+    }
+  });
+  const titleMatch = rawHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const title = decodeHtmlEntities((titleMatch?.[1] || '').replace(/\s+/g, ' ').trim());
+  const markdown = htmlToMarkdown(rawHtml);
+
+  return {
+    strategy: 'direct-html-markdown',
+    content: markdown,
+    title: title || extractTitleFromText(markdown, new URL(targetUrl).hostname)
+  };
+}
+
+async function fetchWebContentWithFallback(targetUrl) {
+  const attempts = [];
+  const minLength = 200;
+
+  // 1) Jina Reader
+  try {
+    const result = await fetchWithJinaReader(targetUrl);
+    if (result.content.length >= minLength) {
+      return { ...result, attempts };
+    }
+    attempts.push({ strategy: result.strategy, ok: false, reason: `内容过短(${result.content.length})` });
+  } catch (e) {
+    attempts.push({ strategy: 'jina-reader', ok: false, reason: e.message });
+  }
+
+  // 2) Scrapling
+  try {
+    const result = await fetchWithScrapling(targetUrl);
+    if (result.content.length >= minLength) {
+      return { ...result, attempts };
+    }
+    attempts.push({ strategy: result.strategy, ok: false, reason: `内容过短(${result.content.length})` });
+  } catch (e) {
+    attempts.push({ strategy: 'scrapling', ok: false, reason: e.message });
+  }
+
+  // 3) 直接抓取 + HTML 转 Markdown
+  try {
+    const directResult = await fetchWithDirectHtml(targetUrl);
+    return { ...directResult, attempts };
+  } catch (e) {
+    attempts.push({ strategy: 'direct-html-markdown', ok: false, reason: e.message || String(e) });
+    return {
+      strategy: 'none',
+      title: new URL(targetUrl).hostname,
+      content: '',
+      attempts
+    };
+  }
 }
 
 // AI 生成函数 - 使用增强的 Prompt 模板
@@ -69,6 +346,123 @@ ${prompt}
   } catch (e) {
     console.log('AI API 不可用，使用模板生成:', e.message);
     return null;
+  }
+}
+
+// LLM 结构化提取函数
+async function extractSkillFromContent(content, context = {}) {
+  const sourceTitle = context.title || extractTitleFromText(content, 'Imported Skill');
+
+  const extractPrompt = `
+你是一个专业的 AI Skill 设计师。请根据网页标题与正文，将信息重写为“可复用、可封装”的 Skill 结构，而不是原文摘抄。
+
+目标：输出 4 个 JSON 字段，严格只输出 JSON。
+
+字段要求：
+1) skill_name
+- 小写英文 + 数字 + 连字符
+- 体现技能能力，不要包含“guide/tutorial/article”等文章词
+
+2) description
+- 1~2 句，说明技能能帮助用户完成什么
+- 结合标题与正文抽象，不要照抄<title>
+
+3) trigger_condition
+- 用“当用户需要...时使用该技能”风格
+- 根据 skill_name + description 智能推断触发场景
+
+4) instructions
+- 必须是“动词驱动”的步骤（1. 2. 3.）
+- 从正文提取动作和操作流程，去掉叙事、广告、作者介绍
+- 若正文非流程文，也要提炼为可执行任务步骤
+
+输出约束：
+- 仅返回合法 JSON
+- 不要 Markdown 代码块
+- 不要额外解释
+
+网页标题：${sourceTitle}
+网页来源：${context.url || 'N/A'}
+抓取方式：${context.fetchStrategy || 'unknown'}
+
+网页正文：
+---
+${String(content || '').substring(0, 12000)}
+---
+`;
+
+  let llmResponse = '';
+  let skillData = null;
+
+  try {
+    const axios = require('axios');
+    if (AI_PROVIDER === 'minimax') {
+      if (!MINIMAX_API_KEY) {
+        throw new Error('请设置 MINIMAX_API_KEY 环境变量');
+      }
+
+      const response = await axios.post('https://api.minimax.chat/v1/text/chatcompletion_v2', {
+        model: MINIMAX_MODEL,
+        messages: [
+          { role: 'system', content: '你是专业的 AI Skill 设计专家，擅长从网页中提取可执行工作流。' },
+          { role: 'user', content: extractPrompt }
+        ],
+        temperature: 0.4
+      }, {
+        headers: {
+          'Authorization': `Bearer ${MINIMAX_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 120000
+      });
+
+      llmResponse = response.data?.choices?.[0]?.message?.content || '';
+    } else if (AI_PROVIDER === 'gemini') {
+      if (!GEMINI_API_KEY) {
+        throw new Error('请设置 GEMINI_API_KEY 环境变量');
+      }
+
+      const response = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          contents: [{ parts: [{ text: extractPrompt }] }],
+          generationConfig: {
+            temperature: 0.4,
+            responseMimeType: 'application/json'
+          }
+        },
+        { headers: { 'Content-Type': 'application/json' }, timeout: 120000 }
+      );
+
+      llmResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } else if (AI_PROVIDER === 'ollama') {
+      const response = await axios.post('http://localhost:11434/api/generate', {
+        model: 'llama3',
+        prompt: extractPrompt,
+        format: 'json',
+        stream: false
+      }, { timeout: 120000 });
+
+      llmResponse = response.data?.response || '';
+    } else {
+      throw new Error(`不支持的 AI 提供商: ${AI_PROVIDER}`);
+    }
+
+    const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON found');
+    skillData = JSON.parse(jsonMatch[0]);
+
+    return {
+      skill_name: sanitizeSkillName(skillData.skill_name, sanitizeSkillName(sourceTitle)),
+      description: String(skillData.description || '').trim(),
+      trigger_condition: String(skillData.trigger_condition || '').trim(),
+      instructions: Array.isArray(skillData.instructions)
+        ? skillData.instructions.join('\n')
+        : String(skillData.instructions || '').trim()
+    };
+  } catch (e) {
+    console.log('LLM 提取失败，切换启发式提取:', e.message);
+    return buildHeuristicSkillData(content, context.url || '', sourceTitle);
   }
 }
 
@@ -256,7 +650,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // POST /api/import-url - 从 URL 导入并生成 Skill（使用 Jina Reader 获取高质量 Markdown）
+    // POST /api/import-url - 从 URL 导入并生成 Skill（三级降级抓取 + LLM 结构化提取）
     if (req.method === 'POST' && pathname === '/api/import-url') {
       const body = await new Promise((resolve, reject) => {
         let data = '';
@@ -274,31 +668,26 @@ const server = http.createServer(async (req, res) => {
       }
 
       try {
-        // 优化：使用 Jina Reader 将 URL 转换为高质量 Markdown
-        // 避免原生 HTML 的 Token 爆炸和无用信息噪音
-        const https = require('https');
-        const jinaUrl = `https://r.jina.ai/${encodeURIComponent(url)}`;
-        
-        const content = await new Promise((resolve, reject) => {
-          https.get(jinaUrl, {
-            headers: {
-              'Accept': 'text/plain'
-            }
-          }, (res) => {
-            let data = '';
-            res.on('data', chunk => data += chunk);
-            res.on('end', () => resolve(data));
-          }).on('error', reject);
-        });
+        // 三级降级抓取:
+        // 1) Jina Reader 2) Scrapling 3) Direct HTML + Markdown
+        const fetched = await fetchWebContentWithFallback(url);
+        const content = fetched.content || '';
 
-        // 使用 LLM 进行结构化提取
-        const structuredData = await extractSkillFromContent(content);
+        // 使用 LLM 进行结构化提取（失败时启发式兜底）
+        const structuredData = await extractSkillFromContent(content, {
+          url,
+          title: fetched.title,
+          fetchStrategy: fetched.strategy
+        });
         
         res.writeHead(200);
         res.end(JSON.stringify({ 
           success: true, 
           ...structuredData,
           rawContent: content,
+          sourceTitle: fetched.title,
+          fetchStrategy: fetched.strategy,
+          fetchAttempts: fetched.attempts || [],
           url: url
         }));
       } catch (error) {
@@ -306,139 +695,6 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ error: error.message }));
       }
       return;
-    }
-
-    // LLM 结构化提取函数
-    async function extractSkillFromContent(content) {
-      const axios = require('axios');
-
-      const extractPrompt = `
-你是一个专业的 AI 技能 (Skill) 配置专家。你的任务是阅读用户提供的一篇网页文章（包含标题和正文），并提取、总结出一个高质量的 AI Skill 配置信息。
-
-请严格根据文章内容，输出包含以下 4 个字段的 JSON 格式数据：
-
-1. "skill_name":
-   - 规则：根据文章核心主题生成一个简短的英文标识符。
-   - 限制：**只能使用小写字母，数字和连字符（-）**，例如：feishu-ai-kb-guide。不要使用任何毫无意义的乱码。
-
-2. "description":
-   - 规则：简要描述该技能的功能。请综合文章标题和核心内容进行总结（1-2句话），说明这个技能可以帮用户做什么。不要照抄原标题。
-
-3. "trigger_condition":
-   - 规则：何时使用该技能。请根据上一步的名称和描述，智能推断用户的搜索意图或提问场景。
-   - 格式建议："当用户需要/询问/遇到...时使用该技能"。
-
-4. "instructions":
-   - 规则：运行指令/工作流。请仔细阅读文章正文，**提取其中的动作和操作步骤**（动词驱动）。
-   - 格式：去除冗余的描述性文字，将其转化为清晰的，分步骤的行动指南（使用 1. 2. 3. 列表格式）。如果原文不是流程，则将其总结为 AI 需要执行的任务规则。
-
-【输出格式要求】
-必须输出合法的 JSON，不要包含任何额外的解释文本或 Markdown 代码块包裹。
-
-以下是网页内容：
----
-${content.substring(0, 8000)}
----
-`;
-
-      let llmResponse = '';
-      let skillData = null;
-
-      try {
-        if (AI_PROVIDER === 'minimax') {
-          // 使用 MiniMax API
-          if (!MINIMAX_API_KEY) {
-            throw new Error('请设置 MINIMAX_API_KEY 环境变量');
-          }
-
-          const response = await axios.post('https://api.minimax.chat/v1/text/chatcompletion_v2', {
-            model: MINIMAX_MODEL,
-            messages: [
-              { role: 'system', content: '你是一个专业的 AI 技能配置专家，请根据用户提供的网页内容提取并生成标准的 Skill 配置信息。' },
-              { role: 'user', content: extractPrompt }
-            ],
-            temperature: 0.7
-          }, {
-            headers: {
-              'Authorization': `Bearer ${MINIMAX_API_KEY}`,
-              'Content-Type': 'application/json'
-            },
-            timeout: 120000
-          });
-
-          llmResponse = response.data?.choices?.[0]?.message?.content || '';
-
-        } else if (AI_PROVIDER === 'gemini') {
-          // 使用 Gemini API
-          if (!GEMINI_API_KEY) {
-            throw new Error('请设置 GEMINI_API_KEY 环境变量');
-          }
-
-          const response = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-            {
-              contents: [{
-                parts: [{ text: extractPrompt }]
-              }],
-              generationConfig: {
-                temperature: 0.7,
-                responseMimeType: 'application/json'
-              }
-            },
-            {
-              headers: { 'Content-Type': 'application/json' },
-              timeout: 120000
-            }
-          );
-
-          llmResponse = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-        } else if (AI_PROVIDER === 'ollama') {
-          // 使用本地 Ollama
-          const response = await axios.post('http://localhost:11434/api/generate', {
-            model: 'llama3',
-            prompt: extractPrompt,
-            format: 'json',
-            stream: false
-          }, { timeout: 120000 });
-
-          llmResponse = response.data?.response || '';
-        } else {
-          throw new Error(`不支持的 AI 提供商: ${AI_PROVIDER}`);
-        }
-
-        // 解析 JSON
-        try {
-          const jsonMatch = llmResponse.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            skillData = JSON.parse(jsonMatch[0]);
-          } else {
-            throw new Error('No JSON found');
-          }
-        } catch (parseError) {
-          console.log('JSON 解析失败，使用备用方案');
-          skillData = {
-            skill_name: 'imported-skill',
-            description: '根据导入内容生成的技能',
-            trigger_condition: '当用户需要相关功能时使用',
-            instructions: content.substring(0, 2000)
-          };
-        }
-
-        return skillData;
-      } catch (e) {
-        console.log('LLM 提取失败:', e.message);
-        // 备用：从内容中提取基本信息
-        const titleMatch = content.match(/#\s+(.+)/);
-        const title = titleMatch ? titleMatch[1].trim() : 'imported-skill';
-
-        return {
-          skill_name: title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').substring(0, 50),
-          description: title.substring(0, 200),
-          trigger_condition: `当用户需要"${title}"相关功能时使用`,
-          instructions: content.substring(0, 2000)
-        };
-      }
     }
 
     // POST /api/skills/install - 安装 skill
